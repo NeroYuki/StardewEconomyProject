@@ -1,0 +1,10 @@
+{
+  "Name": "StardewEconomyProject",
+  "Author": "NeroYuki",
+  "Version": "0.0.1-alpha",
+  "Description": "Think you can snowball your wealth in this game? Think again.",
+  "UniqueID": "neroyuki.ecovalley",
+  "EntryDll": "StardewEconomyProject.dll",
+  "MinimumApiVersion": "3.18.0",
+  "UpdateKeys": []
+}
