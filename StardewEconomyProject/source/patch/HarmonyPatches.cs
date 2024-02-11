@@ -1,13 +1,21 @@
 ﻿using HarmonyLib;
 using Microsoft.Xna.Framework;
+using StardewModdingAPI;
 using StardewValley;
 using System.Globalization;
 using Object = StardewValley.Object;
 
-namespace StardewEconomyProject
+namespace StardewEconomyProject.source.patch
 {
-    public partial class ModEntry
+    public class HarmonyPatches
     {
+        public static void InitPatches(string modId, IMonitor monitor)
+        {
+            utils.LogHelper.Monitor = monitor;
+            var harmony = new Harmony(modId);
+            harmony.PatchAll();
+        }
+
         [HarmonyPatch(typeof(Object), nameof(Object.drawInMenu))]
         public class Object_drawInMenu_Patch
         {
