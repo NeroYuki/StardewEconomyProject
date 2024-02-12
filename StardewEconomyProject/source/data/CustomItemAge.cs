@@ -18,11 +18,6 @@ namespace StardewEconomyProject.source.data
     {
         public static Dictionary<string, CustomItemAgeEntry> itemAges = new Dictionary<string, CustomItemAgeEntry>();
 
-        public CustomItemAge()
-        {
-            
-        }
-
         public static void loadList(Mod context)
         {
             String RelativePath = Path.Combine("customAgingData.json");

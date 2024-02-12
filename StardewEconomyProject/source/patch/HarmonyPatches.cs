@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using Microsoft.Xna.Framework;
+using StardewEconomyProject.source.model;
 using StardewModdingAPI;
 using StardewValley;
 using System.Globalization;
@@ -9,6 +10,7 @@ namespace StardewEconomyProject.source.patch
 {
     public class HarmonyPatches
     {
+
         public static void InitPatches(string modId, IMonitor monitor)
         {
             utils.LogHelper.Monitor = monitor;
@@ -31,6 +33,24 @@ namespace StardewEconomyProject.source.patch
             public static bool Prefix(Object __instance, ref int __result)
             {
                 // modify selling price
+                // if the item is spoiled, return 1
+                if (false)
+                {
+                    __result = 1;
+                    return false;
+                }
+
+                // if the item is not spoiled, search for the item in the pricing list in MarketPrice model
+                // if the item is found, return the price
+                // if the item is not found, return the default price
+
+                int cPrice = MarketPrice.GetPrice(__instance.ItemId);
+                if (cPrice > 0)
+                {
+                    __result = cPrice;
+                    return false;
+                }
+
                 return true;
             }
         }

@@ -13,12 +13,11 @@ namespace StardewEconomyProject
     {
         private source.Manager instance;
         //private source.commands.Commands commandManager;
-        public static IMonitor ModMonitor;
-        public static IModHelper ModHelper;
+        //public static IMonitor ModMonitor;
+        //public static IModHelper ModHelper;
 
         public override void Entry(IModHelper helper)
         {
-
             try
             {
                 ModConfig.GetInstance().SetConfig(this.Helper.ReadConfig<ModConfig>());
@@ -27,6 +26,7 @@ namespace StardewEconomyProject
             {
                 Monitor.Log($"Encountered an error while loading the config.json file. Default settings will be used instead. Full error message:\n-----\n{ex.ToString()}", LogLevel.Error);
             }
+            source.utils.LogHelper.Monitor = this.Monitor;
 
             JsonConvert.DefaultSettings = () => new JsonSerializerSettings
             {
@@ -36,7 +36,10 @@ namespace StardewEconomyProject
 
             //Initialize Global Log
             helper.Events.Input.ButtonPressed += this.OnButtonPressed;
-            Helper.Events.GameLoop.DayStarted += this.OnDayStarting;
+            helper.Events.GameLoop.DayStarted += this.OnDayStarting;
+            helper.Events.GameLoop.SaveLoaded += this.OnLoadedSave;
+            helper.Events.GameLoop.ReturnedToTitle += this.OnExitToTitle;
+            helper.Events.GameLoop.Saved += this.OnGameSaved;
 
             instance = new source.Manager();
 
@@ -47,11 +50,11 @@ namespace StardewEconomyProject
         private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
         {
             // ignore if player hasn't loaded a save yet
-            if (!Context.IsWorldReady)
-                return;
+            //if (!Context.IsWorldReady)
+            //    return;
 
-            // print button presses to the console window
-            this.Monitor.Log($"{Game1.player.Name} pressed {e.Button}.", LogLevel.Debug);
+            //// print button presses to the console window
+            //this.Monitor.Log($"{Game1.player.Name} pressed {e.Button}.", LogLevel.Debug);
         }
 
         private void OnDayStarting(object sender, DayStartedEventArgs e)
@@ -59,7 +62,21 @@ namespace StardewEconomyProject
             // print a message to the player when the day starts
             this.Monitor.Log("Good morning!", LogLevel.Info);
 
-            // update the spoilage of items in the player's inventory and container's
+            instance.OnDayStarting();
+        }
+
+        private void OnLoadedSave(object sender, SaveLoadedEventArgs e)
+        {
+            instance.Init();
+        }
+
+        private void OnGameSaved(object sender, SavedEventArgs e)
+        {
+
+        }
+
+        private void OnExitToTitle(object sender, ReturnedToTitleEventArgs e)
+        {
 
         }
     }
