@@ -1,0 +1,189 @@
+{
+    "Format": "2.9.0",
+    "Changes": [
+        // ═══════════════════════════════════════════════════════════════
+        //  TEXTURE LOADING
+        //  These Load actions register custom texture assets that both
+        //  the CP pack and the C# mod reference.
+        // ═══════════════════════════════════════════════════════════════
+
+        // Big Craftable spritesheet — 3 items, each 16×32 pixels
+        // Layout: [ContractBoard | MarketTerminal | ATMachine]
+        // Required image: 48×32 px
+        {
+            "Action": "Load",
+            "Target": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
+            "FromFile": "assets/big-craftables.png"
+        },
+
+        // Reputation skill icon spritesheet — 8 cells, each 16×16 pixels
+        // Layout: [SkillIcon | SkillPageIcon | LocalMerchant | BulkTrader |
+        //          RegionalMogul | MarketManipulator | GlobalExporter | LuxuryBrand]
+        // Required image: 128×16 px
+        {
+            "Action": "Load",
+            "Target": "Mods/neroyuki.stardeweconomyitems/SkillIcons",
+            "FromFile": "assets/skill-icons.png"
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        //  BIG CRAFTABLE DEFINITIONS (Data/BigCraftables)
+        //  Interactive economy objects the player can craft and place.
+        // ═══════════════════════════════════════════════════════════════
+
+        {
+            "Action": "EditData",
+            "Target": "Data/BigCraftables",
+            "Entries": {
+                "sep.ContractBoard": {
+                    "Name": "sep.ContractBoard",
+                    "DisplayName": "Contract Board",
+                    "Description": "A wooden bulletin board for managing trade contracts with local NPCs. Check it daily for new contract opportunities!",
+                    "Price": 0,
+                    "Fragility": 0,
+                    "CanBePlacedOutdoors": true,
+                    "CanBePlacedIndoors": true,
+                    "IsLamp": false,
+                    "Texture": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
+                    "SpriteIndex": 0,
+                    "ContextTags": [
+                        "sep_economy_item",
+                        "sep_interactive"
+                    ]
+                },
+                "sep.MarketTerminal": {
+                    "Name": "sep.MarketTerminal",
+                    "DisplayName": "Market Terminal",
+                    "Description": "An electronic terminal displaying real-time market conditions, price multipliers, and supply/demand data across all trade categories.",
+                    "Price": 0,
+                    "Fragility": 0,
+                    "CanBePlacedOutdoors": true,
+                    "CanBePlacedIndoors": true,
+                    "IsLamp": false,
+                    "Texture": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
+                    "SpriteIndex": 1,
+                    "ContextTags": [
+                        "sep_economy_item",
+                        "sep_interactive"
+                    ]
+                },
+                "sep.ATMachine": {
+                    "Name": "sep.ATMachine",
+                    "DisplayName": "ATM Machine",
+                    "Description": "An automated teller machine connected to the Ferngill Banking Network. Deposit savings, withdraw funds, manage loans, and set up fixed-term accounts.",
+                    "Price": 0,
+                    "Fragility": 0,
+                    "CanBePlacedOutdoors": true,
+                    "CanBePlacedIndoors": true,
+                    "IsLamp": false,
+                    "Texture": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
+                    "SpriteIndex": 2,
+                    "ContextTags": [
+                        "sep_economy_item",
+                        "sep_interactive"
+                    ]
+                },
+                "sep.Supercomputer": {
+                    "Name": "sep.Supercomputer",
+                    "DisplayName": "Supercomputer",
+                    "Description": "An advanced forecasting terminal that predicts market saturation trends for the next 14 days across all commodity categories. Essential for strategic selling.",
+                    "Price": 0,
+                    "Fragility": 0,
+                    "CanBePlacedOutdoors": true,
+                    "CanBePlacedIndoors": true,
+                    "IsLamp": false,
+                    "Texture": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
+                    "SpriteIndex": 3,
+                    "ContextTags": [
+                        "sep_economy_item",
+                        "sep_interactive"
+                    ]
+                }
+            }
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        //  CRAFTING RECIPES (Data/CraftingRecipes)
+        //  Format: "ingredientId count .../outputId/isBigCraftable/condition/displayName"
+        //
+        //  388=Wood  390=Stone  335=IronBar  336=GoldBar
+        //  337=IridiumBar  338=RefinedQuartz  787=BatteryPack
+        // ═══════════════════════════════════════════════════════════════
+
+        {
+            "Action": "EditData",
+            "Target": "Data/CraftingRecipes",
+            "Entries": {
+                "Contract Board": "388 200 390 50 335 2/sep.ContractBoard/true/default/",
+                "Market Terminal": "335 10 787 1 338 5/sep.MarketTerminal/true/default/",
+                "ATM Machine": "336 5 787 1 337 1/sep.ATMachine/true/default/",
+                "Supercomputer": "337 5 787 3 338 10/sep.Supercomputer/true/default/"
+            }
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        //  MAIL ENTRIES (Data/Mail)
+        //  Letters sent by the C# mod at key economy events.
+        //  @ = farmer name, ^ = line break, [#] = hide signature
+        // ═══════════════════════════════════════════════════════════════
+
+        {
+            "Action": "EditData",
+            "Target": "Data/Mail",
+            "Entries": {
+                "sep.welcome": "Dear @,^^Welcome to the Ferngill Valley Economic Network! As a farmer, you now have access to local trade systems.^^You can craft a Contract Board to manage trade contracts with local merchants, build a Market Terminal to view commodity prices, or set up an ATM Machine for banking services.^^Good luck with your trading endeavors!^   -The Ferngill Chamber of Commerce[#]",
+
+                "sep.taxBill": "Dear @,^^The Ferngill Revenue Service has completed its seasonal assessment of your farm. Your tax obligations have been calculated based on your seasonal income, property values, and utility usage.^^Taxes have been automatically deducted from your account. Open the Tax Bill menu for details.^   -Commissioner Lewis, on behalf of the FRS[#]",
+
+                "sep.contractComplete": "Dear @,^^Congratulations! You have successfully fulfilled a trade contract. Your reputation in the valley continues to grow, and merchants are taking notice of your reliability.^^Keep up the excellent work!^   -The Ferngill Trade Association[#]",
+
+                "sep.contractBreach": "Dear @,^^We regret to inform you that one or more of your trade contracts has expired unfulfilled. This breach has resulted in a reputation penalty and may affect your standing with local merchants.^^Please be more mindful of the commitments you take on.^   -The Ferngill Trade Association[#]",
+
+                "sep.loanApproved": "Dear @,^^Your loan application with the Ferngill Banking Network has been approved! The funds have been deposited into your account.^^Seasonal payments will be automatically deducted. Visit an ATM Machine to view details or make early repayments.^   -Ferngill Banking Network[#]",
+
+                "sep.loanPaymentDue": "Dear @,^^This is a friendly reminder that your seasonal loan payment is due. The amount will be automatically deducted from your account at the start of next season.^^If you have insufficient funds, please make a deposit or visit an ATM to discuss options.^   -Ferngill Banking Network[#]",
+
+                "sep.debtWarning": "NOTICE: OVERDUE ACCOUNT^^Dear @,^^Your loan account is severely past due. If payment is not received soon, the Ferngill Banking Network may take collection action.^^Please visit an ATM Machine immediately to address your outstanding balance.^   -Ferngill Collections Department[#]",
+
+                "sep.reputationNational": "Dear @,^^Your trading reputation has reached new heights! You have been recognized as a National-tier trader by the Ferngill Trade Commission.^^This grants you access to larger Zuzu City contracts and 5x market capacity.^^Congratulations on this milestone!^   -Ferngill Trade Commission[#]",
+
+                "sep.reputationInternational": "Dear @,^^Extraordinary achievement! Your trading reputation has reached the International tier, the highest distinction of the Ferngill Trade Commission.^^You now have access to global export contracts and 25x market capacity. Your farm is truly world-renowned!^   -Ferngill International Trade Office[#]",
+
+                "sep.marketSurge": "MARKET ALERT^^Dear @,^^One or more commodity categories are experiencing a market surge! Demand for affected goods is exceptionally high and prices are at a premium.^^Check your Market Terminal for details and sell now to maximise profits!^   -Ferngill Market Watch[#]"
+            }
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        //  SHOP ENTRIES — Robin's Carpenter Shop
+        //  Adds all three economy craftables as purchasable alternatives.
+        // ═══════════════════════════════════════════════════════════════
+
+        {
+            "Action": "EditData",
+            "Target": "Data/Shops",
+            "TargetField": [ "Carpenter", "Items" ],
+            "Entries": {
+                "sep.ContractBoard_Shop": {
+                    "Id": "sep.ContractBoard_Shop",
+                    "ItemId": "(BC)sep.ContractBoard",
+                    "Price": 1000
+                },
+                "sep.MarketTerminal_Shop": {
+                    "Id": "sep.MarketTerminal_Shop",
+                    "ItemId": "(BC)sep.MarketTerminal",
+                    "Price": 5000
+                },
+                "sep.ATMachine_Shop": {
+                    "Id": "sep.ATMachine_Shop",
+                    "ItemId": "(BC)sep.ATMachine",
+                    "Price": 10000
+                },
+                "sep.Supercomputer_Shop": {
+                    "Id": "sep.Supercomputer_Shop",
+                    "ItemId": "(BC)sep.Supercomputer",
+                    "Price": 25000
+                }
+            }
+        }
+    ]
+}

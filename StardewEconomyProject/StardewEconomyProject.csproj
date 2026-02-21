@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>StardewEconomyProject</AssemblyName>
+    <RootNamespace>StardewEconomyProject</RootNamespace>
+    <Version>0.1.0-alpha</Version>
+    <TargetFramework>net6.0</TargetFramework>
+    <EnableHarmony>true</EnableHarmony>
+    <Authors>NeroYuki</Authors>
+    <Company>None</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="SpaceCore">
+      <HintPath>D:\SteamLibrary\steamapps\common\Stardew Valley\Mods\SpaceCore\SpaceCore.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="manifest.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="economyConfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+{
+  "Name": "StardewEconomyProject",
+  "Author": "NeroYuki",
+  "Version": "0.1.0-alpha",
+  "Description": "Complete economy overhaul: deflationary pricing, volumetric market saturation, contracts, bargaining, taxation, banking, and a Reputation skill.",
+  "UniqueID": "neroyuki.stardeweconomy",
+  "EntryDll": "StardewEconomyProject.dll",
+  "MinimumApiVersion": "4.5.0",
+  "UpdateKeys": [],
+  "Dependencies": [
+    {
+      "UniqueID": "spacechase0.SpaceCore",
+      "IsRequired": true
+    },
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "IsRequired": false
+    },
+    {
+      "UniqueID": "Pathoschild.ContentPatcher",
+      "IsRequired": false
+    },
+    {
+      "UniqueID": "neroyuki.stardeweconomyitems",
+      "IsRequired": false
+    }
+  ]
+}

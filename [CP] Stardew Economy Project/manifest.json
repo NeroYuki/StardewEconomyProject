@@ -1,0 +1,11 @@
+{
+    "Name": "StardewEconomyProject Items (CP)",
+    "Author": "NeroYuki",
+    "Version": "0.1.0-alpha",
+    "Description": "Content Patcher content pack for new items added to support StardewEconomyProject's new mechanic",
+    "UniqueID": "neroyuki.stardeweconomyitems",
+    "UpdateKeys": [],
+    "ContentPackFor": {
+        "UniqueID": "Pathoschild.ContentPatcher"
+    }
+}
