@@ -18,8 +18,8 @@ namespace StardewEconomyProject.source.menus
     {
         // Scale factor from config — applied to row heights, padding, and menu dimensions.
         private static float S => Math.Max(0.5f, Math.Min(3.0f, ModConfig.GetInstance().UiSpacingScale));
-        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 64, (int)(900 * Math.Max(1f, S)));
-        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 64, (int)(620 * S));
+        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width - 32, (int)(900 * Math.Max(1f, S)));
+        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 32, (int)(664 * S));
 
         private RootElement Ui;
         private Table AvailableTable;
@@ -51,7 +51,7 @@ namespace StardewEconomyProject.source.menus
             {
                 String = "Available Contracts",
                 Bold = true,
-                LocalPosition = new Vector2(32, (int)(16 * S)),
+                LocalPosition = new Vector2(64, (int)(72 * S)),
                 IdleTextColor = ShowingActive ? Color.Gray : Color.DarkGoldenrod,
                 HoverTextColor = Color.Gold,
                 Callback = _ => { ShowingActive = false; _pendingRefresh = true; },
@@ -62,7 +62,7 @@ namespace StardewEconomyProject.source.menus
             {
                 String = "Active Contracts",
                 Bold = true,
-                LocalPosition = new Vector2((int)(400 * S), (int)(16 * S)),
+                LocalPosition = new Vector2((int)(480 * S), (int)(72 * S)),
                 IdleTextColor = ShowingActive ? Color.DarkGoldenrod : Color.Gray,
                 HoverTextColor = Color.Gold,
                 Callback = _ => { ShowingActive = true; _pendingRefresh = true; },
@@ -86,9 +86,9 @@ namespace StardewEconomyProject.source.menus
         {
             return new Table()
             {
-                LocalPosition = new Vector2(16, (int)(60 * S)),
-                RowHeight = (int)(38 * S),
-                Size = new Vector2(MenuWidth - 32, MenuHeight - (int)(100 * S)),
+                LocalPosition = new Vector2(16, (int)(120 * S)),
+                RowHeight = (int)(32 * S),
+                Size = new Vector2(MenuWidth - 32, MenuHeight - (int)(160 * S)),
             };
         }
 

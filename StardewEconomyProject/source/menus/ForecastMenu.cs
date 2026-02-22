@@ -21,8 +21,8 @@ namespace StardewEconomyProject.source.menus
     public class ForecastMenu : IClickableMenu
     {
         private static float S => Math.Max(0.5f, Math.Min(3.0f, ModConfig.GetInstance().UiSpacingScale));
-        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 64, (int)(1000 * Math.Max(1f, S)));
-        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 64, (int)(580 * S));
+        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 32, (int)(1000 * Math.Max(1f, S)));
+        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 32, (int)(580 * S));
         private const int ForecastDays = 14;
 
         private RootElement Ui;
@@ -30,7 +30,7 @@ namespace StardewEconomyProject.source.menus
         private Textbox SearchBox;
         private string _lastSearchText = "";
 
-        // Pre-built forecast data: categoryBottleId -> float[14]
+        // Pre-built forecast data: itemBottleId -> float[14]
         private readonly Dictionary<string, float[]> _forecast;
 
         // All shipped item data for searching
@@ -53,7 +53,8 @@ namespace StardewEconomyProject.source.menus
 
         private void BuildItemList()
         {
-            // Gather all Object-type items that have a sell price and a known category
+            // Gather all Object-type items that have a sell price and a known category.
+            // Each item gets its own per-item bottle via GetOrCreateBottle.
             var objectData = Game1.objectData;
             if (objectData == null) return;
 
@@ -68,8 +69,13 @@ namespace StardewEconomyProject.source.menus
                     int rawPrice = item.salePrice(false);
                     if (rawPrice <= 0) continue;
 
+                    string qualifiedId = item.QualifiedItemId;
                     string category = MarketCategories.FromItemCategory(item.Category);
-                    string bottleId = $"{category}_Q0";
+
+                    // Ensure the bottle exists for Q0
+                    MarketManager.GetOrCreateBottle(qualifiedId, 0);
+
+                    string bottleId = MarketManager.GetItemBottleId(qualifiedId, 0);
                     if (!_forecast.ContainsKey(bottleId)) continue;
 
                     _allItems.Add(new ItemForecastEntry
@@ -102,16 +108,17 @@ namespace StardewEconomyProject.source.menus
             Ui.AddChild(new Label()
             {
                 String = "Supercomputer - Item Supply Forecast",
-                Bold = true,
+                // Bold = true,  for some godforsaken reason bold font just does not accept any other color than drak gray (SpaceShared.UI.Label.cs line 78)
                 LocalPosition = new Vector2(MenuWidth / 2 - 230, (int)(16 * S)),
-                IdleTextColor = Color.DarkGoldenrod,
+                IdleTextColor = Color.White,
+                HoverTextColor = Color.White,
             });
 
             // Subtitle
             Ui.AddChild(new Label()
             {
-                String = "Search for items to see their 14-day market forecast.",
-                LocalPosition = new Vector2(24, (int)(44 * S)),
+                String = "Search for Item market forecast",
+                LocalPosition = new Vector2(MenuWidth / 2, (int)(74 * S)),
                 IdleTextColor = Color.DimGray,
             });
 
@@ -177,19 +184,19 @@ namespace StardewEconomyProject.source.menus
             float tableHeight = MenuHeight - tableTop - (int)(60 * S);
             ResultsTable = new Table()
             {
-                LocalPosition = new Vector2(16, tableTop),
+                LocalPosition = new Vector2(16, tableTop + 32),
                 RowHeight = (int)(32 * S),
-                Size = new Vector2(MenuWidth - 32, tableHeight),
+                Size = new Vector2(MenuWidth - 32, tableHeight - 64),
             };
             Ui.AddChild(ResultsTable);
 
             // Legend at the bottom
             float legendY = tableTop + tableHeight + (int)(10 * S);
             float legendSpacing = (float)(MenuWidth - 32) / 4f;
-            AddLegendEntry("0-30% (High)", Color.ForestGreen, 16, legendY);
-            AddLegendEntry("30-55% (OK)", Color.Gold, legendSpacing, legendY);
-            AddLegendEntry("55-80% (Low)", Color.OrangeRed, legendSpacing * 2, legendY);
-            AddLegendEntry("80-100% (Crash)", Color.DarkRed, legendSpacing * 3, legendY);
+            AddLegendEntry("0-30% (High)", Color.ForestGreen, 48, legendY);
+            AddLegendEntry("30-55% (OK)", Color.Gold, 32 + legendSpacing, legendY);
+            AddLegendEntry("55-80% (Low)", Color.OrangeRed, 32 + legendSpacing * 2, legendY);
+            AddLegendEntry("80-100% (Crash)", Color.DarkRed, 32 + legendSpacing * 3, legendY);
 
             // Initial populate (show first items)
             PopulateResults("");
@@ -208,9 +215,9 @@ namespace StardewEconomyProject.source.menus
             float tableHeight = MenuHeight - tableTop - (int)(60 * S);
             ResultsTable = new Table()
             {
-                LocalPosition = new Vector2(16, tableTop),
+                LocalPosition = new Vector2(16, tableTop + 32),
                 RowHeight = (int)(32 * S),
-                Size = new Vector2(MenuWidth - 32, tableHeight),
+                Size = new Vector2(MenuWidth - 32, tableHeight - 64),
             };
 
             // Filter items
@@ -306,7 +313,7 @@ namespace StardewEconomyProject.source.menus
         {
             Ui.AddChild(new StaticContainer()
             {
-                LocalPosition = new Vector2(x, y + 2),
+                LocalPosition = new Vector2(x, y),
                 Size = new Vector2(14, 14),
                 OutlineColor = color,
             });
@@ -314,7 +321,7 @@ namespace StardewEconomyProject.source.menus
             Ui.AddChild(new Label()
             {
                 String = text,
-                LocalPosition = new Vector2(x + 20, y),
+                LocalPosition = new Vector2(x + 25, y),
                 IdleTextColor = Color.DimGray,
                 NonBoldScale = 0.75f,
             });
@@ -362,6 +369,18 @@ namespace StardewEconomyProject.source.menus
                 PopulateResults(current);
             }
         }
+
+        public override void receiveKeyPress(Microsoft.Xna.Framework.Input.Keys key)
+        {
+            // Close only on Escape. Do NOT close on menuButton (which includes E
+            // by default) — that would close the menu while typing in the search box.
+            // base.receiveKeyPress is intentionally NOT called for the same reason.
+            if (key == Microsoft.Xna.Framework.Input.Keys.Escape)
+                exitThisMenu();
+        }
+
+        // Always return false so Game1's inventory-button path can't force-close us.
+        public override bool readyToClose() => false;
 
         public override void draw(SpriteBatch b)
         {

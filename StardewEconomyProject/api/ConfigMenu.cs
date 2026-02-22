@@ -200,8 +200,10 @@ namespace StardewEconomyProject.api
                 name: () => "Daily Interest Rate", tooltip: () => "Daily savings interest.", min: 0f, max: 0.01f, interval: 0.0001f);
             _api.AddNumberOption(_manifest, getValue: () => (float)cfg.LoanInterestRate, setValue: v => cfg.LoanInterestRate = v,
                 name: () => "Loan Interest Rate", tooltip: () => "Seasonal loan interest rate.", min: 0.01f, max: 0.2f, interval: 0.01f);
-            _api.AddNumberOption(_manifest, getValue: () => cfg.MaxLoanAmount, setValue: v => cfg.MaxLoanAmount = (int)v,
-                name: () => "Max Loan Amount", min: 10000f, max: 1000000f, interval: 10000f);
+            _api.AddNumberOption(_manifest, getValue: () => cfg.LoanLimitMaxTier, setValue: v => cfg.LoanLimitMaxTier = (int)v,
+                name: () => "Max Loan (Top Tier)",
+                tooltip: () => "Loan limit when all vault bundles or Joja route is complete. Lower tiers scale proportionally.",
+                min: 10000f, max: 1000000f, interval: 10000f);
 
             _api.AddSectionTitle(_manifest, () => "Fixed-Term Interest Rate Multipliers",
                 () => "Daily interest rate multiplier per lock-in period (stacked on Base Rate).");

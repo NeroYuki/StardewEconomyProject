@@ -20,10 +20,10 @@ namespace StardewEconomyProject.source.harmony_patches
         private static IMonitor _monitor;
 
         // Our custom Big Craftable item IDs (must match Data/BigCraftables keys in the CP pack)
-        public const string ContractBoardId = "sep.ContractBoard";
-        public const string MarketTerminalId = "sep.MarketTerminal";
-        public const string ATMachineId = "sep.ATMachine";
-        public const string SupercomputerId = "sep.Supercomputer";
+        public const string ContractBoardId   = "sep.ContractBoard";
+        public const string MarketTerminalId  = "sep.MarketTerminal";
+        public const string ATMachineId       = "sep.ATMachine";
+        public const string SupercomputerId   = "sep.Supercomputer";
 
         public static void Initialize(IMonitor monitor)
         {

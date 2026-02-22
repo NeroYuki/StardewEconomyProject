@@ -152,26 +152,37 @@ namespace StardewEconomyProject.source.harmony_patches
             if (bottles == null || bottles.Count == 0)
                 return "Welcome to the Market & Trade Report!^No market data available yet. Start selling to see trends!";
 
-            // Group by category, pick the highest-impact quality tier
-            var categories = bottles.Values
-                .GroupBy(b => b.CategoryId)
-                .OrderBy(g => Array.IndexOf(MarketCategories.All, g.Key))
-                .ToList();
-
             var lines = new List<string>();
-            lines.Add("Welcome to the Market & Trade Report!^Here's today's market conditions:");
+            lines.Add("Welcome to the Market & Trade Report!^Here's today's notable market movements:");
 
-            foreach (var group in categories)
+            // === Section 1: Top 10 outstanding saturation changes ===
+            var topChanges = MarketManager.GetTopSaturationChanges(10);
+            if (topChanges.Count > 0)
             {
-                // Use the base quality (0) bottle as the representative
-                var representative = group.FirstOrDefault(b => b.QualityTier == 0) ?? group.First();
-                string emoji = GetMarketEmoji(representative.MarketState);
-                string trend = GetTrendText(representative);
-                lines.Add($"{representative.CategoryId}: {emoji} {representative.MarketState} (x{representative.DynamicPriceMultiplier:F2}) — {trend}");
+                foreach (var (bottle, delta) in topChanges)
+                {
+                    string itemName = ResolveItemName(bottle.ItemId) ?? bottle.BottleId;
+                    string emoji = GetMarketEmoji(bottle.MarketState);
+                    string direction = delta < 0 ? "▲ Demand up" : "▼ Supply rose";
+                    lines.Add($"{emoji} {itemName}: {direction} ({delta:+0.0%;-0.0%}) — now {bottle.MarketState} (x{bottle.DynamicPriceMultiplier:F2})");
+                }
+            }
+            else
+            {
+                lines.Add("Markets are stable today — no significant movements.");
             }
 
-            // Add general advice
-            lines.Add(GetGeneralAdvice(categories));
+            // === Section 2: Surge alerts ===
+            var surges = bottles.Values.Where(b => b.IsSurgeActive).ToList();
+            if (surges.Count > 0)
+            {
+                string surgeNames = string.Join(", ",
+                    surges.Take(5).Select(s => ResolveItemName(s.ItemId) ?? s.BottleId));
+                lines.Add($"^SURGE ALERT: {surgeNames} — massive demand spike! Sell now for premium prices!");
+            }
+
+            // === Section 3: General seasonal tip ===
+            lines.Add(GetSeasonalTip());
 
             return string.Join("^", lines);
         }
@@ -185,24 +196,34 @@ namespace StardewEconomyProject.source.harmony_patches
             if (bottles == null || bottles.Count == 0)
                 return "The market seems quiet today.";
 
-            // Find the best and worst categories
-            var byMultiplier = bottles.Values
+            // Find the best and worst items (base quality only)
+            var baseQuality = bottles.Values
                 .Where(b => b.QualityTier == 0)
                 .OrderByDescending(b => b.DynamicPriceMultiplier)
                 .ToList();
 
-            if (byMultiplier.Count == 0)
+            if (baseQuality.Count == 0)
                 return "The market seems quiet today.";
 
-            var best = byMultiplier.First();
-            var worst = byMultiplier.Last();
+            var best = baseQuality.First();
+            var worst = baseQuality.Last();
+            string bestName = ResolveItemName(best.ItemId) ?? best.CategoryId;
+            string worstName = ResolveItemName(worst.ItemId) ?? worst.CategoryId;
 
             if (best.DynamicPriceMultiplier > 0.6f)
-                return $"I hear {best.CategoryId} goods are selling well right now! Prices are strong.";
+                return $"I hear {bestName} is selling really well right now! Prices are strong.";
             if (worst.DynamicPriceMultiplier < 0.15f)
-                return $"The {worst.CategoryId} market is completely flooded. You might want to hold off on selling those.";
+                return $"The market for {worstName} is completely flooded. You might want to hold off on selling those.";
 
-            return $"{best.CategoryId} looks promising, while {worst.CategoryId} is oversaturated.";
+            return $"{bestName} looks promising, while {worstName} is oversaturated.";
+        }
+
+        /// <summary>Resolve a qualified item ID to its display name, or null.</summary>
+        private static string ResolveItemName(string qualifiedItemId)
+        {
+            if (string.IsNullOrEmpty(qualifiedItemId)) return null;
+            try { return ItemRegistry.Create(qualifiedItemId)?.DisplayName; }
+            catch { return null; }
         }
 
         private static string GetMarketEmoji(string state)
@@ -218,31 +239,8 @@ namespace StardewEconomyProject.source.harmony_patches
             };
         }
 
-        private static string GetTrendText(MarketBottle bottle)
+        private static string GetSeasonalTip()
         {
-            float sat = bottle.Saturation;
-            if (sat < 0.10f) return "Prices are surging! Sell now!";
-            if (sat < 0.30f) return "Good time to sell.";
-            if (sat < 0.55f) return "Average conditions.";
-            if (sat < 0.80f) return "Oversupplied — consider waiting.";
-            return "Market crashed — avoid selling.";
-        }
-
-        private static string GetGeneralAdvice(List<IGrouping<string, MarketBottle>> categories)
-        {
-            // Find any surge opportunities
-            var surges = categories
-                .Select(g => g.FirstOrDefault(b => b.QualityTier == 0) ?? g.First())
-                .Where(b => b.IsSurgeActive)
-                .ToList();
-
-            if (surges.Count > 0)
-            {
-                string surgeNames = string.Join(", ", surges.Select(s => s.CategoryId));
-                return $"^SURGE ALERT: {surgeNames} markets have a surge event today! Prices will be exceptionally high!";
-            }
-
-            // General tip based on season
             string season = Game1.currentSeason;
             return season switch
             {
@@ -250,7 +248,7 @@ namespace StardewEconomyProject.source.harmony_patches
                 "summer" => "^Tip: Summer festivals can boost certain categories. Watch for events!",
                 "fall" => "^Tip: Fall brings premium prices for higher-quality goods.",
                 "winter" => "^Tip: With fewer crops, Forage and Animal Products tend to hold value.",
-                _ => "^Diversify your sales across categories to avoid flooding any single market!"
+                _ => "^Diversify your sales across items to avoid flooding any single market!"
             };
         }
     }

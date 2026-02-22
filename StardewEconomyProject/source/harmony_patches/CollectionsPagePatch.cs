@@ -80,18 +80,9 @@ namespace StardewEconomyProject.source.harmony_patches
                 int rawPrice = item.sellToStorePrice(-1L);
                 float satMult = bottle.DynamicPriceMultiplier;
 
-                string stateColor = bottle.MarketState switch
-                {
-                    "Empty / Surge" => "",
-                    "Healthy" => "",
-                    "Saturated" => "",
-                    "Flooded" => "",
-                    "Crash" => "",
-                    _ => ""
-                };
-
                 __result += Environment.NewLine;
-                __result += Environment.NewLine + $"== Market Supply ({category}) ==";
+                __result += Environment.NewLine + $"== Market Supply ({item.DisplayName}) ==";
+                __result += Environment.NewLine + $"  Category: {category}";
                 __result += Environment.NewLine + $"  Saturation: {bottle.Saturation:P0}";
                 __result += Environment.NewLine + $"  State: {bottle.MarketState}";
                 __result += Environment.NewLine + $"  Price Multiplier: x{satMult:F2}";

@@ -107,6 +107,10 @@ namespace StardewEconomyProject.source.economy
     /// <summary>
     /// Central manager for all market bottles. Handles initialization, daily updates,
     /// seasonal prefilling, volume tracking, and serialization.
+    ///
+    /// Each bottle represents one (item × quality-tier) pairing.
+    /// Bottles are lazily created when an item is first encountered.
+    /// Key format: "{qualifiedItemId}_Q{quality}"  e.g. "(O)254_Q0" for normal-quality Melon.
     /// </summary>
     public class MarketManager
     {
@@ -122,6 +126,9 @@ namespace StardewEconomyProject.source.economy
         /// <summary>The season when bottles were last prefilled.</summary>
         private static string _lastPrefillSeason = "";
 
+        /// <summary>Snapshot of yesterday's saturation for change-detection (TV report).</summary>
+        private static Dictionary<string, float> _previousSaturation = new();
+
         /// <summary>Flag used by Harmony patches to skip GlobalSellMultiplier for contracts.</summary>
         public static bool IsCalculatingContractPrice { get; set; } = false;
 
@@ -130,41 +137,72 @@ namespace StardewEconomyProject.source.economy
         // ══════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Initialize or reset all market bottles based on config and reputation level.
+        /// Initialize or reset the market system.
+        /// Bottles are created lazily on demand — this just clears state.
         /// </summary>
         public static void Initialize(int reputationLevel = 0)
         {
             _bottles.Clear();
-            var config = ModConfig.GetInstance();
-            float reputationCapacityMultiplier = GetReputationCapacityMultiplier(reputationLevel);
-
-            foreach (string category in MarketCategories.All)
-            {
-                foreach (int quality in MarketCategories.QualityTiers)
-                {
-                    string bottleId = $"{category}_Q{quality}";
-                    float baseCap = (float)config.BaseBottleCapacity;
-                    float categoryCap = MarketCategories.GetCategoryCapacityMultiplier(category);
-                    float qualityCap = MarketCategories.GetQualityCapacityScalar(quality, config);
-                    float drainRate = MarketCategories.GetDrainRate(category, config);
-
-                    var bottle = new MarketBottle
-                    {
-                        BottleId = bottleId,
-                        CategoryId = category,
-                        QualityTier = quality,
-                        CurrentVolume = 0,
-                        MaxCapacity = baseCap * categoryCap * qualityCap * reputationCapacityMultiplier,
-                        DailyDrainRate = drainRate,
-                    };
-
-                    _bottles[bottleId] = bottle;
-                }
-            }
-
+            _previousSaturation.Clear();
             _marketRng = new Random((int)Game1.uniqueIDForThisGame + Game1.Date.TotalDays);
             _initialized = true;
-            LogHelper.Info($"[Market] Initialized {_bottles.Count} bottles (reputation multiplier: {reputationCapacityMultiplier:F1}x)");
+            LogHelper.Info($"[Market] Initialized (per-item bottles, created on demand).");
+        }
+
+        /// <summary>
+        /// Build the bottle ID for a given item and quality tier.
+        /// </summary>
+        public static string GetItemBottleId(string qualifiedItemId, int quality)
+            => $"{qualifiedItemId}_Q{quality}";
+
+        /// <summary>
+        /// Build the bottle ID for an Item instance.
+        /// </summary>
+        public static string GetItemBottleId(Item item)
+            => item == null ? null : GetItemBottleId(item.QualifiedItemId, item.Quality);
+
+        /// <summary>
+        /// Get an existing bottle or lazily create one for the specified item + quality.
+        /// </summary>
+        public static MarketBottle GetOrCreateBottle(string qualifiedItemId, int quality, int reputationLevel = -1)
+        {
+            string bottleId = GetItemBottleId(qualifiedItemId, quality);
+            if (_bottles.TryGetValue(bottleId, out var existing))
+                return existing;
+
+            // Lazily create — derive category from item registry
+            string category = MarketCategories.Default;
+            try
+            {
+                var tmp = ItemRegistry.Create(qualifiedItemId);
+                if (tmp != null)
+                    category = MarketCategories.FromItemCategory(tmp.Category);
+            }
+            catch { /* default category */ }
+
+            if (reputationLevel < 0)
+                reputationLevel = ReputationSkill.GetLevel(Game1.player);
+
+            var config = ModConfig.GetInstance();
+            float baseCap = (float)config.BaseBottleCapacity;
+            float categoryCap = MarketCategories.GetCategoryCapacityMultiplier(category);
+            float qualityCap = MarketCategories.GetQualityCapacityScalar(quality, config);
+            float repMult = GetReputationCapacityMultiplier(reputationLevel);
+            float drainRate = MarketCategories.GetDrainRate(category, config);
+
+            var bottle = new MarketBottle
+            {
+                BottleId = bottleId,
+                ItemId = qualifiedItemId,
+                CategoryId = category,
+                QualityTier = quality,
+                CurrentVolume = 0,
+                MaxCapacity = baseCap * categoryCap * qualityCap * repMult,
+                DailyDrainRate = drainRate,
+            };
+
+            _bottles[bottleId] = bottle;
+            return bottle;
         }
 
         /// <summary>
@@ -203,36 +241,39 @@ namespace StardewEconomyProject.source.economy
             var config = ModConfig.GetInstance();
             _marketRng = new Random((int)Game1.uniqueIDForThisGame + Game1.Date.TotalDays);
 
+            // Snapshot previous saturation for change-detection (TV report)
+            _previousSaturation.Clear();
+            foreach (var kvp in _bottles)
+                _previousSaturation[kvp.Key] = kvp.Value.Saturation;
+
             // Daily luck factor influences drainage variance
             float luckFactor = 1.0f + (float)(Game1.player.DailyLuck * 2.0);
 
-            // Reputation-based drain bonuses
-            float drainBonus = 1.0f;
+            // Reputation-based drain inertia (higher rep = calmer, more stable market)
             int repLevel = ReputationSkill.GetLevel(Game1.player);
-            if (repLevel >= 3)
-                drainBonus *= 1.10f; // Level 3 perk: +10% drain rate
-            if (ReputationSkill.HasProfession("MarketManipulator"))
-                drainBonus *= 1.25f; // MarketManipulator profession: +25% drain rate
+            float drainInertFactor;
+            if (repLevel >= 10)      drainInertFactor = 0.70f;  // International: very stable
+            else if (repLevel >= 5)  drainInertFactor = 0.85f;  // National: moderately stable
+            else                     drainInertFactor = 1.00f;  // Regional: full amplitude
 
-            // Check for surge events
+            // MarketManipulator perk adds extra drain on top (by reducing inertia)
+            if (ReputationSkill.HasProfession("MarketManipulator"))
+                drainInertFactor = Math.Min(drainInertFactor * 1.25f, 1.25f);
+
+            // Level 3 perk: +10% effective drain
+            if (repLevel >= 3)
+                drainInertFactor = Math.Min(drainInertFactor * 1.10f, 1.35f);
+
+            // Check for surge events & apply drainage
             foreach (var bottle in _bottles.Values)
             {
-                // Surge probability check
                 if (_marketRng.NextDouble() < config.SurgeProbability)
                 {
                     bottle.IsSurgeActive = true;
                     LogHelper.Info($"[Market] SURGE EVENT: {bottle.BottleId} — massive demand spike!");
                 }
 
-                // Apply daily drainage
-                bottle.ApplyDailyDrainage(_marketRng, luckFactor);
-
-                // Apply additional drainage from reputation perks
-                if (drainBonus > 1.0f)
-                {
-                    float extraDrain = bottle.MaxCapacity * bottle.DailyDrainRate * (drainBonus - 1.0f);
-                    bottle.RemoveVolume(extraDrain);
-                }
+                bottle.ApplyDailyDrainage(_marketRng, luckFactor, drainInertFactor);
             }
 
             // Seasonal prefill on season change
@@ -289,16 +330,8 @@ namespace StardewEconomyProject.source.economy
         {
             if (item == null || !_initialized) return 1.0f;
 
-            string category = MarketCategories.FromItemCategory(item.Category);
-            int quality = item.Quality;
-            string bottleId = $"{category}_Q{quality}";
-
-            if (_bottles.TryGetValue(bottleId, out var bottle))
-            {
-                return bottle.DynamicPriceMultiplier * bottle.QualityMarginMultiplier;
-            }
-
-            return 1.0f;
+            var bottle = GetOrCreateBottle(item.QualifiedItemId, item.Quality);
+            return bottle.DynamicPriceMultiplier * bottle.QualityMarginMultiplier;
         }
 
         /// <summary>
@@ -309,16 +342,8 @@ namespace StardewEconomyProject.source.economy
         {
             if (item == null || !_initialized) return 1.0f;
 
-            string category = MarketCategories.FromItemCategory(item.Category);
-            int quality = item.Quality;
-            string bottleId = $"{category}_Q{quality}";
-
-            if (_bottles.TryGetValue(bottleId, out var bottle))
-            {
-                return bottle.DynamicPriceMultiplier;
-            }
-
-            return 1.0f;
+            var bottle = GetOrCreateBottle(item.QualifiedItemId, item.Quality);
+            return bottle.DynamicPriceMultiplier;
         }
 
         /// <summary>Get a specific bottle by ID.</summary>
@@ -327,13 +352,11 @@ namespace StardewEconomyProject.source.economy
             return _bottles.TryGetValue(bottleId, out var bottle) ? bottle : null;
         }
 
-        /// <summary>Get the bottle for a specific item.</summary>
+        /// <summary>Get the bottle for a specific item (creates lazily if needed).</summary>
         public static MarketBottle GetBottleForItem(Item item)
         {
             if (item == null) return null;
-            string category = MarketCategories.FromItemCategory(item.Category);
-            string bottleId = $"{category}_Q{item.Quality}";
-            return _bottles.TryGetValue(bottleId, out var bottle) ? bottle : null;
+            return GetOrCreateBottle(item.QualifiedItemId, item.Quality);
         }
 
         /// <summary>Get all bottles.</summary>
@@ -353,34 +376,25 @@ namespace StardewEconomyProject.source.economy
         {
             if (item == null || !_initialized) return;
 
-            var bottle = GetBottleForItem(item);
-            if (bottle != null)
-            {
-                bottle.AddVolume(quantity);
-                LogHelper.Trace($"[Market] Sold {quantity}x {item.Name} → {bottle.BottleId} ({bottle.Saturation:P0} saturated)");
-            }
+            var bottle = GetOrCreateBottle(item.QualifiedItemId, item.Quality);
+            bottle.AddVolume(quantity);
+            LogHelper.Trace($"[Market] Sold {quantity}x {item.Name} → {bottle.BottleId} ({bottle.Saturation:P0} saturated)");
         }
 
         /// <summary>
-        /// Transfer volume from raw ingredient bottle to artisan bottle when processing.
+        /// Transfer volume from raw ingredient bottle to artisan output bottle when processing.
+        /// The artisan output item's own qualified ID is used as the artisan bottle key.
         /// </summary>
         public static void TransferToArtisan(Item rawItem, int quantity)
         {
             if (rawItem == null || !_initialized) return;
 
-            // Remove from raw category
-            var rawBottle = GetBottleForItem(rawItem);
-            if (rawBottle != null)
-            {
-                rawBottle.RemoveVolume(quantity);
-            }
+            // Drain the raw material's bottle
+            var rawBottle = GetOrCreateBottle(rawItem.QualifiedItemId, rawItem.Quality);
+            rawBottle.RemoveVolume(quantity);
 
-            // Add to artisan bottle (quality 0 for artisan goods)
-            string artisanBottleId = $"{MarketCategories.ArtisanGoods}_Q0";
-            if (_bottles.TryGetValue(artisanBottleId, out var artisanBottle))
-            {
-                artisanBottle.AddVolume(quantity);
-            }
+            // NOTE: the artisan *output* bottle is filled when the output is shipped,
+            // so no need to double-fill here.
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -406,20 +420,39 @@ namespace StardewEconomyProject.source.economy
                 // Use deterministic simulation based on game seed
                 var simRng = new Random((int)Game1.uniqueIDForThisGame + Game1.Date.TotalDays);
 
+                // Competition spectrum at current season (matches ApplyDailyDrainage logic)
+                int simSeasonIdx = Game1.currentSeason switch
+                {
+                    "spring" => 0, "summer" => 1, "fall" => 2, "winter" => 3, _ => 0
+                };
+                int totalSeasonsSim = (Game1.year - 1) * 4 + simSeasonIdx;
+                float simT = Math.Clamp(totalSeasonsSim / 8f, 0f, 1f);
+                float simDrainW    = 0.70f - 0.20f * simT;
+                float simSaturateW = 0.30f + 0.20f * simT;
+                // Use the same ref-capacity approach (baseline, not MaxCapacity)
+                float simRefCap = (float)config.BaseBottleCapacity
+                    * MarketCategories.GetCategoryCapacityMultiplier(kvp.Value.CategoryId);
+                float simBaseDrain = simRefCap * drainRate;
+
                 for (int day = 0; day < daysAhead; day++)
                 {
-                    float baseDrain = maxCap * drainRate;
-                    float variance = baseDrain * 0.3f;
-                    float randomVar = (float)(simRng.NextDouble() * 2 - 1) * variance;
-                    float totalDrain = baseDrain + randomVar;
+                    float consumptionRoll = 0.5f + (float)simRng.NextDouble();
+                    float competitionRoll = 0.5f + (float)simRng.NextDouble();
+                    float consumption = simBaseDrain * simDrainW * consumptionRoll;
+                    float competition = simBaseDrain * simSaturateW * competitionRoll;
+                    float netChange = consumption - competition;
 
                     // Check for surge
                     if (simRng.NextDouble() < config.SurgeProbability)
                     {
-                        totalDrain *= 5f + (float)(simRng.NextDouble() * 5.0);
+                        netChange = simBaseDrain * (5f + (float)(simRng.NextDouble() * 5.0));
                     }
 
-                    currentVol = Math.Max(0, currentVol - totalDrain);
+                    if (netChange > 0)
+                        currentVol = Math.Max(0, currentVol - netChange);
+                    else
+                        currentVol = Math.Min(maxCap, currentVol - netChange);
+
                     forecast[day] = maxCap > 0 ? currentVol / maxCap : 0;
                 }
 
@@ -479,9 +512,38 @@ namespace StardewEconomyProject.source.economy
         public static void Reset()
         {
             _bottles.Clear();
+            _previousSaturation.Clear();
             _initialized = false;
             _lastPrefillSeason = "";
             LogHelper.Debug("[Market] State reset.");
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  CHANGE DETECTION (for TV report)
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns the top N bottles with the largest day-over-day saturation changes.
+        /// Positive delta = saturation rose (bad for price); negative = saturation fell (good for price).
+        /// Returns tuples of (bottle, deltaPercent).
+        /// </summary>
+        public static List<(MarketBottle bottle, float delta)> GetTopSaturationChanges(int topN = 10)
+        {
+            var changes = new List<(MarketBottle bottle, float delta)>();
+
+            foreach (var kvp in _bottles)
+            {
+                float prev = _previousSaturation.TryGetValue(kvp.Key, out float p) ? p : 0f;
+                float curr = kvp.Value.Saturation;
+                float delta = curr - prev;
+                if (Math.Abs(delta) > 0.01f) // ignore negligible changes
+                    changes.Add((kvp.Value, delta));
+            }
+
+            return changes
+                .OrderByDescending(c => Math.Abs(c.delta))
+                .Take(topN)
+                .ToList();
         }
 
         /// <summary>Internal save data structure.</summary>

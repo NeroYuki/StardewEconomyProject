@@ -40,6 +40,7 @@ namespace StardewEconomyProject.source.harmony_patches
             BigCraftablePatches.Initialize(monitor);
             TvPatches.Initialize(monitor);
             CollectionsPagePatch.Initialize(monitor);
+            BuildingPatches.Initialize(monitor);
 
             var harmony = new Harmony(uniqueModId);
 
@@ -108,11 +109,28 @@ namespace StardewEconomyProject.source.harmony_patches
 
             monitor.Log("Economy harmony patches applied successfully.", LogLevel.Info);
 
+            // ── ShopMenu sell tracking (bottles + income) ──
+            harmony.Patch(
+                original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveLeftClick),
+                    new[] { typeof(int), typeof(int), typeof(bool) }),
+                prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Prefix)),
+                postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Postfix))
+            );
+            harmony.Patch(
+                original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveRightClick),
+                    new[] { typeof(int), typeof(int), typeof(bool) }),
+                prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Prefix)),
+                postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Postfix))
+            );
+
             // ── TV Market Report channel ──
             TvPatches.Apply(harmony);
 
             // ── Collections page hover — per-item market info ──
             CollectionsPagePatch.Apply(harmony);
+
+            // ── Building tile actions (Delivery Truck etc.) ──
+            BuildingPatches.Apply(harmony);
         }
     }
 }

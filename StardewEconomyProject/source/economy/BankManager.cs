@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using Newtonsoft.Json;
 using StardewValley;
+using StardewValley.Locations;
 
 namespace StardewEconomyProject.source.economy
 {
@@ -173,13 +175,69 @@ namespace StardewEconomyProject.source.economy
         //  LOAN OPERATIONS
         // ══════════════════════════════════════════════════════════════
 
+        // ══════════════════════════════════════════════════════════════
+        //  LOAN LIMIT — VAULT BUNDLE GATING
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns the player's current max loan amount, scaled by vault bundle completion.
+        /// Tiers: none=1k, 2500g bundle=10k, 5000g=20k, 10000g=40k, 25000g=100k, all/joja=250k
+        /// (all proportionally scaled from <see cref="ModConfig.LoanLimitMaxTier"/>).
+        /// </summary>
+        public static int GetLoanLimit()
+        {
+            double cap = ModConfig.GetInstance().LoanLimitMaxTier;
+            const double defaultMax = 250_000.0;
+            int Scaled(double defaultLimit) => Math.Max(1, (int)(cap * defaultLimit / defaultMax));
+
+            // Top tier: all vault bundles complete OR Joja route finished
+            if (HasFinishedJojaRoute() || AreAllVaultBundlesComplete())
+                return (int)cap;
+
+            if (IsBundleComplete(23)) return Scaled(100_000); // 25 000g bundle
+            if (IsBundleComplete(15)) return Scaled(40_000);  // 10 000g bundle
+            if (IsBundleComplete(14)) return Scaled(20_000);  // 5 000g bundle
+            if (IsBundleComplete(13)) return Scaled(10_000);  // 2 500g bundle
+            return Scaled(1_000);                              // no vault bundle done
+        }
+
+        /// <summary>Returns true when the Joja community development route is complete.</summary>
+        private static bool HasFinishedJojaRoute()
+        {
+            // Each Joja development project sends a specific mail on purchase.
+            var mail = Game1.MasterPlayer.mailReceived;
+            return mail.Contains("jojaMember") &&
+                   mail.Contains("jojaBoiler") && mail.Contains("jojaFridge") &&
+                   mail.Contains("jojaBus")    && mail.Contains("jojaGreenhouse") &&
+                   mail.Contains("jojaVault");
+        }
+
+        /// <summary>Returns true when all four vault bundles (IDs 13, 14, 15, 23) are complete.</summary>
+        private static bool AreAllVaultBundlesComplete()
+            => IsBundleComplete(13) && IsBundleComplete(14)
+            && IsBundleComplete(15) && IsBundleComplete(23);
+
+        /// <summary>Returns true when every slot in a community center bundle is filled.</summary>
+        private static bool IsBundleComplete(int bundleId)
+        {
+            try
+            {
+                var cc = Game1.getLocationFromName("CommunityCenter") as CommunityCenter;
+                if (cc == null) return false;
+                if (!cc.bundles.ContainsKey(bundleId)) return false;
+                bool[] slots = cc.bundles[bundleId];
+                return slots.Length > 0 && slots.All(b => b);
+            }
+            catch { return false; }
+        }
+
         /// <summary>Take out a loan.</summary>
-        public static bool TakeLoan(int amount)
+        public static bool TakeLoan(int amount, int seasons = 4)
         {
             if (!ModConfig.GetInstance().EnableBanking) return false;
-            var config = ModConfig.GetInstance();
 
-            if (amount <= 0 || amount > config.MaxLoanAmount) return false;
+            int limit = GetLoanLimit();
+            if (amount <= 0 || amount > limit) return false;
             if (_data.LoanBalance > 0)
             {
                 Game1.addHUDMessage(new HUDMessage(
@@ -188,16 +246,18 @@ namespace StardewEconomyProject.source.economy
                 return false;
             }
 
+            seasons = SnapToValidSeasons(seasons);
+
             _data.LoanPrincipal = amount;
             _data.LoanBalance = amount;
-            _data.LoanSeasonsRemaining = 4; // 4-season repayment period
-            _data.SeasonalPayment = CalculateSeasonalPayment(amount, config.LoanInterestRate, 4);
+            _data.LoanSeasonsRemaining = seasons;
+            _data.SeasonalPayment = CalculateSeasonalPayment(amount, ModConfig.GetInstance().LoanInterestRate, seasons);
 
             Game1.player.Money += amount;
 
-            LogHelper.Info($"[Bank] Loan taken: {amount}g. Seasonal payment: {_data.SeasonalPayment}g over 4 seasons.");
+            LogHelper.Info($"[Bank] Loan taken: {amount}g. Seasonal payment: {_data.SeasonalPayment}g over {seasons} season(s).");
             Game1.addHUDMessage(new HUDMessage(
-                $"Loan approved: {amount:N0}g! Payment: {_data.SeasonalPayment:N0}g/season for 4 seasons.",
+                $"Loan approved: {amount:N0}g! Payment: {_data.SeasonalPayment:N0}g/season for {seasons} season(s).",
                 HUDMessage.achievement_type));
 
             // Send loan approval mail
@@ -298,6 +358,17 @@ namespace StardewEconomyProject.source.economy
         // ══════════════════════════════════════════════════════════════
         //  QUERIES
         // ══════════════════════════════════════════════════════════════
+
+        /// <summary>Returns a short human-readable description of the current loan tier.</summary>
+        public static string GetLoanLimitTierName()
+        {
+            if (HasFinishedJojaRoute() || AreAllVaultBundlesComplete()) return "vault complete / Joja";
+            if (IsBundleComplete(23)) return "25,000g bundle done";
+            if (IsBundleComplete(15)) return "10,000g bundle done";
+            if (IsBundleComplete(14)) return "5,000g bundle done";
+            if (IsBundleComplete(13)) return "2,500g bundle done";
+            return "no vault bundles";
+        }
 
         public static int GetSavingsBalance() => _data.SavingsBalance;
         public static int GetLoanBalance() => _data.LoanBalance;

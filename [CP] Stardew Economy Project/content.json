@@ -7,13 +7,22 @@
         //  the CP pack and the C# mod reference.
         // ═══════════════════════════════════════════════════════════════
 
-        // Big Craftable spritesheet — 3 items, each 16×32 pixels
-        // Layout: [ContractBoard | MarketTerminal | ATMachine]
-        // Required image: 48×32 px
+        // Big Craftable spritesheet — 4 items, each 16×32 pixels
+        // Layout: [ContractBoard | MarketTerminal | ATMachine | Supercomputer]
+        // Required image: 64×32 px
         {
             "Action": "Load",
             "Target": "Mods/neroyuki.stardeweconomyitems/BigCraftables",
             "FromFile": "assets/big-craftables.png"
+        },
+
+        // Delivery Truck building sprite
+        // A single 96×128 px texture for the 3×2 tile building footprint.
+        // (3 tiles wide × 16px = 48px; height including roof ≈ 128px is typical)
+        {
+            "Action": "Load",
+            "Target": "Mods/neroyuki.stardeweconomyitems/DeliveryTruck",
+            "FromFile": "assets/delivery-truck.png"
         },
 
         // Reputation skill icon spritesheet — 8 cells, each 16×16 pixels
@@ -98,6 +107,36 @@
                         "sep_economy_item",
                         "sep_interactive"
                     ]
+                }
+            }
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        //  BUILDING DEFINITIONS (Data/Buildings)
+        //  Delivery Truck — a proper farm building purchasable from Robin.
+        //  Right-clicking it opens the cargo hold container.
+        // ═══════════════════════════════════════════════════════════════
+
+        {
+            "Action": "EditData",
+            "Target": "Data/Buildings",
+            "Entries": {
+                "neroyuki.stardeweconomy_DeliveryTruck": {
+                    "Name": "Delivery Truck",
+                    "Description": "A logistics truck parked on your farm. Load it with produce before nightfall — at the start of each day it auto-delivers to active trade contracts, then ships leftovers to market.",
+                    "Texture": "Mods/neroyuki.stardeweconomyitems/DeliveryTruck",
+                    "Builder": "Robin",
+                    "BuildCost": 15000,
+                    "BuildDays": 1,
+                    "BuildMaterials": [
+                        { "ItemId": "(O)335", "Amount": 20 },
+                        { "ItemId": "(O)390", "Amount": 100 },
+                        { "ItemId": "(O)388", "Amount": 50 }
+                    ],
+                    "Size": { "X": 3, "Y": 2 },
+                    "CollisionMap": "XXXXXX\nXOOOXX",
+                    "DefaultAction": "sep.OpenDeliveryTruck",
+                    "DrawShadow": true
                 }
             }
         },

@@ -1,23 +1,27 @@
 using System;
 using Newtonsoft.Json;
+using StardewValley;
 
 namespace StardewEconomyProject.source.economy
 {
     /// <summary>
     /// Represents a single market "bottle" — a volumetric container for a
-    /// specific produce category and quality tier combination.
+    /// specific item type and quality tier combination.
     /// The bottle tracks current supply volume against maximum capacity,
     /// and the saturation level drives dynamic pricing.
     /// </summary>
     public class MarketBottle
     {
         /// <summary>
-        /// Unique identifier for this bottle, e.g. "Vegetable_Normal", "Fruit_Gold".
-        /// Format: {CategoryID}_{QualityTier}
+        /// Unique identifier for this bottle.
+        /// Format: {QualifiedItemId}_Q{QualityTier}  e.g. "(O)254_Q0"
         /// </summary>
         public string BottleId { get; set; }
 
-        /// <summary>The market category this bottle belongs to.</summary>
+        /// <summary>The qualified item ID this bottle tracks, e.g. "(O)254".</summary>
+        public string ItemId { get; set; }
+
+        /// <summary>The market category this item belongs to (used for drain rates).</summary>
         public string CategoryId { get; set; }
 
         /// <summary>Quality tier: 0=Normal, 1=Silver, 2=Gold, 4=Iridium.</summary>
@@ -119,24 +123,71 @@ namespace StardewEconomyProject.source.economy
         }
 
         /// <summary>
-        /// Apply daily drainage to this bottle.
-        /// D = (Cmax * M_base_demand) + Random(-R, R)
-        /// If surge: D *= Random(5, 10)
+        /// Apply daily competition-driven drainage / saturation.
+        ///
+        /// The game world has many other farms; on any given day competitors
+        /// may flood the market (raising volume/saturation) or consumer demand
+        /// may pull it down (lowering volume/saturation).
+        ///
+        /// SPECTRUM — advances every season, not every year:
+        ///   Spring Y1 (season 0)  : 70% drain / 30% saturate  (favorable start)
+        ///   Winter Y2 (season 7)  : ~54% / 46%
+        ///   Spring Y3 (season 8+) : 50% drain / 50% saturate  (full equilibrium)
+        ///
+        /// BASE DRAIN — uses a reference capacity (BaseBottleCapacity × category scalar)
+        /// so that expanding the bottle via reputation does NOT proportionally scale
+        /// competition. A higher-rep bottle drains less relative to its size.
+        ///
+        /// INERT FACTOR — optional reputation-based dampener passed by MarketManager.
+        ///   Rep 0-4 Regional  : 1.00  (full amplitude)
+        ///   Rep 5-9 National  : 0.85  (slightly calmer market)
+        ///   Rep 10 Intl       : 0.70  (mature, stable market)
         /// </summary>
-        public void ApplyDailyDrainage(Random rng, float luckFactor)
+        public void ApplyDailyDrainage(Random rng, float luckFactor, float drainInertFactor = 1.0f)
         {
-            float baseDrain = MaxCapacity * DailyDrainRate;
-            float variance = baseDrain * 0.3f * luckFactor;
-            float randomVariance = (float)(rng.NextDouble() * 2 - 1) * variance;
-            float totalDrain = baseDrain + randomVariance;
+            // ── Reference capacity: category-scaled baseline, NOT expanded rep capacity ──
+            var config = ModConfig.GetInstance();
+            float catMult = MarketCategories.GetCategoryCapacityMultiplier(CategoryId);
+            float refCap  = (float)config.BaseBottleCapacity * catMult;
+            float baseDrain = refCap * DailyDrainRate * drainInertFactor;
 
+            // ── Competition spectrum: advances by season ──
+            int seasonIndex = Game1.currentSeason switch
+            {
+                "spring" => 0, "summer" => 1, "fall" => 2, "winter" => 3, _ => 0
+            };
+            int totalSeasons = (Game1.year - 1) * 4 + seasonIndex;
+            float t = Math.Clamp(totalSeasons / 8f, 0f, 1f);  // 0.0 @ spring Y1 → 1.0 @ spring Y3
+            float drainWeight    = 0.70f - 0.20f * t;          // 0.70 → 0.50
+            float saturateWeight = 0.30f + 0.20f * t;          // 0.30 → 0.50
+
+            // Each component gets independent random variance [0.5 … 1.5]
+            float consumptionRoll = 0.5f + (float)rng.NextDouble();
+            float competitionRoll = 0.5f + (float)rng.NextDouble();
+
+            float consumption = baseDrain * drainWeight * consumptionRoll;
+            float competition = baseDrain * saturateWeight * competitionRoll;
+
+            // Daily luck widens the consumption swing
+            float luckSwing = baseDrain * 0.15f * luckFactor
+                              * (float)(rng.NextDouble() * 2 - 1);
+            consumption = Math.Max(0, consumption + luckSwing);
+
+            float netChange = consumption - competition;
+
+            // Surge overrides: massive demand spike always drains
             if (IsSurgeActive)
             {
                 float surgeMultiplier = 5f + (float)(rng.NextDouble() * 5.0);
-                totalDrain *= surgeMultiplier;
+                netChange = baseDrain * surgeMultiplier;
             }
 
-            RemoveVolume(Math.Max(0, totalDrain));
+            // Apply: positive → drain (vol ↓, price ↑); negative → fill (vol ↑, price ↓)
+            if (netChange > 0)
+                RemoveVolume(netChange);
+            else
+                AddVolume(Math.Abs(netChange));
+
             IsSurgeActive = false;
         }
 

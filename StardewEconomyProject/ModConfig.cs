@@ -79,8 +79,9 @@ namespace StardewEconomyProject
         /// </summary>
         public double SurgeProbability { get; set; } = 0.02;
 
-        /// <summary>Base market bottle capacity for normal-quality crops.</summary>
-        public double BaseBottleCapacity { get; set; } = 1000.0;
+        /// <summary>Base market bottle capacity for each item at normal quality.
+        /// Reduced because each item now has its own bottle (was 1000 when per-category).</summary>
+        public double BaseBottleCapacity { get; set; } = 100.0;
 
         // ══════════════════════════════════════════════════════════════
         //  QUALITY STRATIFICATION
@@ -161,8 +162,12 @@ namespace StardewEconomyProject
         /// <summary>Loan interest rate per season. Domain: [0.01 - 0.2]</summary>
         public double LoanInterestRate { get; set; } = 0.05;
 
-        /// <summary>Maximum loan amount available.</summary>
-        public int MaxLoanAmount { get; set; } = 100000;
+        /// <summary>
+        /// Maximum loan amount for the top credit tier (all vault bundles / Joja route done).
+        /// Lower tiers scale proportionally from this value.
+        /// Tiers (default): no bundles=1k, 2500g=10k, 5000g=20k, 10000g=40k, 25000g=100k, all/joja=250k.
+        /// </summary>
+        public int LoanLimitMaxTier { get; set; } = 250000;
 
         // ══════════════════════════════════════════════════════════════
         //  ARTISAN MACHINE OPERATION COSTS

@@ -15,10 +15,11 @@ namespace StardewEconomyProject.source.menus
     public class TaxBillMenu : IClickableMenu
     {
         private static float S => Math.Max(0.5f, Math.Min(3.0f, ModConfig.GetInstance().UiSpacingScale));
-        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 64, (int)(720 * Math.Max(1f, S)));
-        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 64, (int)(520 * S));
+        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 32, (int)(720 * Math.Max(1f, S)));
+        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 32, (int)(520 * S));
 
         private RootElement Ui;
+
 
         public TaxBillMenu()
             : base(
@@ -42,9 +43,10 @@ namespace StardewEconomyProject.source.menus
             Ui.AddChild(new Label()
             {
                 String = "Tax Assessment Office",
-                Bold = true,
+                // Bold = true,  for some godforsaken reason bold font just does not accept any other color than drak gray (SpaceShared.UI.Label.cs line 78)
                 LocalPosition = new Vector2(MenuWidth / 2 - 140, y),
-                IdleTextColor = Color.DarkGoldenrod,
+                IdleTextColor = Color.White,
+                HoverTextColor = Color.White,
             });
             y += (int)(48 * S);
 

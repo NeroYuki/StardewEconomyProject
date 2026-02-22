@@ -115,13 +115,18 @@ namespace StardewEconomyProject.source.commands
                 return;
             }
 
+            // Show only non-empty bottles to avoid flooding the console
+            int shown = 0;
             foreach (var kvp in bottles)
             {
                 var bottle = kvp.Value;
+                if (bottle.CurrentVolume <= 0 && !bottle.IsSurgeActive) continue;
                 _monitor.Log($"  [{bottle.BottleId}] {bottle.CurrentVolume:F0}/{bottle.MaxCapacity:F0} " +
                              $"({bottle.Saturation:P0}) State={bottle.MarketState} DynMult={bottle.DynamicPriceMultiplier:F3}",
                     LogLevel.Info);
+                shown++;
             }
+            _monitor.Log($"  ({shown} active of {bottles.Count} total bottles)", LogLevel.Info);
         }
 
         private void OnForecast(string command, string[] args)
@@ -309,7 +314,7 @@ namespace StardewEconomyProject.source.commands
                 return;
             }
             bool ok = BankManager.TakeLoan(amount);
-            _monitor.Log(ok ? $"Loan of {amount}g approved!" : $"Loan denied (max: {ModConfig.GetInstance().MaxLoanAmount}g, existing loan, or too small).", LogLevel.Info);
+            _monitor.Log(ok ? $"Loan of {amount}g approved!" : $"Loan denied (limit: {BankManager.GetLoanLimit():N0}g, existing loan, or too small).", LogLevel.Info);
         }
 
         private void OnRepay(string command, string[] args)

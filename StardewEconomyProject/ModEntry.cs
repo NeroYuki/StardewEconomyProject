@@ -15,12 +15,13 @@ namespace StardewEconomyProject
         private source.commands.Commands _commandManager;
 
         // Save data keys stored in player modData
-        private const string SaveKey_Market = "neroyuki.stardeweconomy/MarketData";
-        private const string SaveKey_Contracts = "neroyuki.stardeweconomy/ContractData";
-        private const string SaveKey_Tax = "neroyuki.stardeweconomy/TaxData";
-        private const string SaveKey_Bank = "neroyuki.stardeweconomy/BankData";
-        private const string SaveKey_Bargain = "neroyuki.stardeweconomy/BargainData";
-        private const string SaveKey_Reputation = "neroyuki.stardeweconomy/ReputationData";
+        private const string SaveKey_Market     = "neroyuki.stardeweconomy/MarketData";
+        private const string SaveKey_Contracts   = "neroyuki.stardeweconomy/ContractData";
+        private const string SaveKey_Tax         = "neroyuki.stardeweconomy/TaxData";
+        private const string SaveKey_Bank        = "neroyuki.stardeweconomy/BankData";
+        private const string SaveKey_Bargain     = "neroyuki.stardeweconomy/BargainData";
+        private const string SaveKey_Reputation  = "neroyuki.stardeweconomy/ReputationData";
+        private const string SaveKey_Truck       = "neroyuki.stardeweconomy/TruckData";
 
         /*********
         ** Public methods
@@ -149,6 +150,12 @@ namespace StardewEconomyProject
             else
                 BargainManager.Initialize();
 
+            // ── Delivery Truck ──
+            if (player.modData.TryGetValue(SaveKey_Truck, out string truckJson))
+                source.economy.DeliveryTruckManager.Deserialize(truckJson);
+            else
+                source.economy.DeliveryTruckManager.Initialize();
+
             Monitor.Log($"Economy systems loaded. Season: {Game1.currentSeason}, Day: {Game1.dayOfMonth}, Reputation: Lv{reputationLevel}", LogLevel.Info);
 
             // ── Send welcome mail on first load ──
@@ -160,11 +167,12 @@ namespace StardewEconomyProject
         {
             var player = Game1.player;
 
-            player.modData[SaveKey_Market] = MarketManager.Serialize();
+            player.modData[SaveKey_Market]   = MarketManager.Serialize();
             player.modData[SaveKey_Contracts] = ContractManager.Serialize();
-            player.modData[SaveKey_Tax] = TaxManager.Serialize();
-            player.modData[SaveKey_Bank] = BankManager.Serialize();
-            player.modData[SaveKey_Bargain] = BargainManager.Serialize();
+            player.modData[SaveKey_Tax]       = TaxManager.Serialize();
+            player.modData[SaveKey_Bank]      = BankManager.Serialize();
+            player.modData[SaveKey_Bargain]   = BargainManager.Serialize();
+            player.modData[SaveKey_Truck]     = source.economy.DeliveryTruckManager.Serialize();
 
             Monitor.Log("Economy state saved.", LogLevel.Trace);
         }
@@ -174,6 +182,9 @@ namespace StardewEconomyProject
         {
             var config = ModConfig.GetInstance();
             var player = Game1.player;
+
+            // ── Delivery Truck: process yesterday's cargo before anything else ──
+            source.economy.DeliveryTruckManager.ProcessDayEnd();
 
             // ── Market Manager daily update ──
             MarketManager.OnDayStarted();
@@ -274,6 +285,7 @@ namespace StardewEconomyProject
             TaxManager.Reset();
             BankManager.Reset();
             BargainManager.Reset();
+            source.economy.DeliveryTruckManager.Reset();
         }
 
         /// <summary>Handle key presses to open economy menus.</summary>

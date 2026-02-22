@@ -15,8 +15,8 @@ namespace StardewEconomyProject.source.menus
     public class BankMenu : IClickableMenu
     {
         private static float S => Math.Max(0.5f, Math.Min(3.0f, ModConfig.GetInstance().UiSpacingScale));
-        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 64, (int)(700 * Math.Max(1f, S)));
-        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 64, (int)(680 * S));
+        private static int MenuWidth  => Math.Min(Game1.uiViewport.Width  - 32, (int)(700 * Math.Max(1f, S)));
+        private static int MenuHeight => Math.Min(Game1.uiViewport.Height - 32, (int)(640 * S));
 
         private RootElement Ui;
         private Textbox AmountBox;
@@ -24,14 +24,16 @@ namespace StardewEconomyProject.source.menus
         // Parsed value from AmountBox
         private int AmountValue => int.TryParse(AmountBox?.String, out int v) ? Math.Max(0, v) : 0;
 
-        // Fixed-term period selection
+        // Fixed-term period selection (shared between savings and loan)
         private int _selectedSeasons = 1;
         private Label[] _periodButtons;
         private Label PeriodsPreviewLabel;
+        private Label LoanPreviewLabel;
 
         // Status labels to refresh
         private Label SavingsLabel;
         private Label LoanLabel;
+        private Label LoanLimitLabel;
         private Label InterestLabel;
         private Label FixedTermLabel;
         private Label WalletLabel;
@@ -59,9 +61,10 @@ namespace StardewEconomyProject.source.menus
             Ui.AddChild(new Label()
             {
                 String = "Stardew Valley Bank",
-                Bold = true,
+                // Bold = true,  for some godforsaken reason bold font just does not accept any other color than drak gray (SpaceShared.UI.Label.cs line 78)
                 LocalPosition = new Vector2(MenuWidth / 2 - 130, y),
-                IdleTextColor = Color.DarkGoldenrod,
+                IdleTextColor = Color.White,
+                HoverTextColor = Color.White,
             });
             y += (int)(48 * S);
 
@@ -110,7 +113,18 @@ namespace StardewEconomyProject.source.menus
                 IdleTextColor = BankManager.GetLoanBalance() > 0 ? Color.Firebrick : Color.DimGray,
             };
             Ui.AddChild(LoanLabel);
-            y += (int)(48 * S);
+            y += (int)(28 * S);
+
+            LoanLimitLabel = new Label()
+            {
+                String = GetLoanLimitText(),
+                LocalPosition = new Vector2(32, y),
+                IdleTextColor = Color.SlateBlue,
+            };
+            Ui.AddChild(LoanLimitLabel);
+            y += (int)(20 * S);
+
+            y += (int)(20 * S);  // small gap before action buttons
 
             // ── Amount Input ──
             Ui.AddChild(new Label()
@@ -169,11 +183,11 @@ namespace StardewEconomyProject.source.menus
             {
                 int amt = AmountValue;
                 if (amt <= 0) { ShowFeedback("Enter a positive amount.", Color.Red); return; }
-                bool ok = BankManager.TakeLoan(amt);
+                bool ok = BankManager.TakeLoan(amt, _selectedSeasons);
                 if (ok)
                 {
                     Game1.playSound("purchase");
-                    ShowFeedback($"Loan of {amt}g approved!", Color.ForestGreen);
+                    ShowFeedback($"Loan of {amt}g over {_selectedSeasons}s approved!", Color.ForestGreen);
                 }
                 else ShowFeedback("Existing loan outstanding or amount too high.", Color.Red);
                 RefreshLabels();
@@ -196,8 +210,8 @@ namespace StardewEconomyProject.source.menus
 
             y += (int)(48 * S);
 
-            // ── Fixed-Term Deposit ──
-            Ui.AddChild(SectionHeader("Fixed-Term Deposit", y));
+            // ── Term Length (Fixed Savings & Loan) ──
+            Ui.AddChild(SectionHeader("Term Length  ·  Savings & Loan", y));
             y += (int)(30 * S);
 
             Ui.AddChild(new Label()
@@ -237,6 +251,15 @@ namespace StardewEconomyProject.source.menus
                 IdleTextColor = Color.Teal,
             };
             Ui.AddChild(PeriodsPreviewLabel);
+            y += (int)(28 * S);
+
+            LoanPreviewLabel = new Label()
+            {
+                String = GetLoanPreview(_selectedSeasons, AmountValue),
+                LocalPosition = new Vector2(32, y),
+                IdleTextColor = Color.IndianRed,
+            };
+            Ui.AddChild(LoanPreviewLabel);
             y += (int)(34 * S);
 
             Ui.AddChild(MakeButton("Start Fixed Term", btnX, y, Color.Teal, () =>
@@ -272,6 +295,7 @@ namespace StardewEconomyProject.source.menus
             FixedTermLabel.IdleTextColor = BankManager.IsFixedTerm() ? Color.DarkOrange : Color.DimGray;
             LoanLabel.String = GetLoanText();
             LoanLabel.IdleTextColor = BankManager.GetLoanBalance() > 0 ? Color.Firebrick : Color.DimGray;
+            LoanLimitLabel.String = GetLoanLimitText();
         }
 
         private void ShowFeedback(string msg, Color color)
@@ -289,6 +313,13 @@ namespace StardewEconomyProject.source.menus
                 return $"Fixed Term: {daysLeft}d left (~{seasonsLeft}s)  ·  {BankManager.GetFixedTermRateMultiplier():F1}x rate";
             }
             return "No fixed-term active";
+        }
+
+        private string GetLoanLimitText()
+        {
+            int limit = BankManager.GetLoanLimit();
+            string tier = BankManager.GetLoanLimitTierName();
+            return $"Credit Limit: {limit:N0}g  ({tier})";
         }
 
         private string GetLoanText()
@@ -328,11 +359,15 @@ namespace StardewEconomyProject.source.menus
 
         public override void receiveKeyPress(Microsoft.Xna.Framework.Input.Keys key)
         {
-            // Only close on Escape/menu button. Do NOT call base for other keys so the
-            // textbox can capture digits without the game swallowing them.
-            if (Game1.options.menuButton.Any(b => b.key == key) && readyToClose())
+            // Close only on Escape. Do NOT close on menuButton (which includes E
+            // by default) — that would close the menu while typing in the amount box.
+            // base.receiveKeyPress is intentionally NOT called for the same reason.
+            if (key == Microsoft.Xna.Framework.Input.Keys.Escape)
                 exitThisMenu();
         }
+
+        // Always return false so Game1's inventory-button path can't force-close us.
+        public override bool readyToClose() => false;
 
         // ── Period selection helpers ──
         private static readonly int[] SeasonOptions = { 1, 2, 4, 8, 12 };
@@ -353,7 +388,22 @@ namespace StardewEconomyProject.source.menus
             double totalPct = Math.Pow(1.0 + daily, days) - 1.0;
             int savings     = BankManager.GetSavingsBalance();
             string est      = savings > 0 ? $"  ·  est. +{(int)(savings * totalPct):N0}g" : "";
-            return $"{seasons} season(s) = {days} days  ·  {mult:F1}x rate  ·  ~{totalPct:P1} total{est}";
+            return $"Savings: {seasons}s = {days}d  ·  {mult:F1}x rate  ·  ~{totalPct:P1} total{est}";
+        }
+
+        private string GetLoanPreview(int seasons, int amount)
+        {
+            int days = seasons * 28;
+            if (amount <= 0)
+                return $"Loan: {seasons}s = {days}d repayment  ·  enter amount for payment estimate";
+            double rate = ModConfig.GetInstance().LoanInterestRate;
+            double r = rate;
+            double n = seasons;
+            int payment = r <= 0
+                ? amount / seasons
+                : (int)(amount * (r * Math.Pow(1 + r, n)) / (Math.Pow(1 + r, n) - 1));
+            int total = payment * seasons;
+            return $"Loan: {amount:N0}g over {seasons}s  ·  ~{payment:N0}g/season  ·  total ~{total:N0}g";
         }
 
         public override void update(GameTime time)
@@ -376,6 +426,13 @@ namespace StardewEconomyProject.source.menus
                 string preview = GetPeriodsPreview(_selectedSeasons);
                 if (PeriodsPreviewLabel.String != preview)
                     PeriodsPreviewLabel.String = preview;
+            }
+
+            if (LoanPreviewLabel != null)
+            {
+                string lp = GetLoanPreview(_selectedSeasons, AmountValue);
+                if (LoanPreviewLabel.String != lp)
+                    LoanPreviewLabel.String = lp;
             }
         }
 

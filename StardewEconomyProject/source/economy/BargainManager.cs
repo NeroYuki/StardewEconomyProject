@@ -425,6 +425,83 @@ namespace StardewEconomyProject.source.economy
             _activeOffers.Where(o => o.IsAccepted && !o.IsDelivered && !o.IsExpired).ToList().AsReadOnly();
 
         // ══════════════════════════════════════════════════════════════
+        //  DELIVERY TRUCK INTEGRATION
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Attempt to fulfil accepted bargain offers using items from the delivery truck.
+        /// Offers are processed urgency-first (fewest delivery days remaining first).
+        ///
+        /// Returns the items that were NOT consumed by any contract (leftover produce for
+        /// normal shipping). Also outputs counts for the HUD summary.
+        /// </summary>
+        public static List<Item> FulfillFromTruck(
+            List<Item> truckItems,
+            out int contractsFulfilled,
+            out int incomeEarned)
+        {
+            contractsFulfilled = 0;
+            incomeEarned = 0;
+
+            // Mutable working copy — we reduce stacks as offers are satisfied
+            var remaining = truckItems.Select(i => (Item)i.getOne()).ToList();
+            for (int idx = 0; idx < remaining.Count; idx++)
+                remaining[idx].Stack = truckItems[idx].Stack;
+
+            // Sort accepted offers by urgency (deadline closest first)
+            var pending = _activeOffers
+                .Where(o => o.IsAccepted && !o.IsDelivered && !o.IsExpired)
+                .OrderBy(o => o.DeliveryDaysRemaining)
+                .ToList();
+
+            foreach (var offer in pending)
+            {
+                // Find a matching item in the truck
+                int need = offer.Quantity;
+                for (int i = 0; i < remaining.Count && need > 0; i++)
+                {
+                    var item = remaining[i];
+                    if (item == null || item.QualifiedItemId != offer.ItemQualifiedId) continue;
+
+                    int consume = Math.Min(item.Stack, need);
+                    item.Stack -= consume;
+                    need -= consume;
+
+                    if (item.Stack <= 0)
+                        remaining[i] = null;
+                }
+
+                if (need > 0) continue; // not enough in the truck for this offer
+
+                // Mark delivered and pay out
+                offer.IsDelivered = true;
+                int reward = offer.OfferPrice;
+                Game1.player.Money += reward;
+                TaxManager.RecordIncome(reward);
+                ReputationSkill.AddReputationXP(Game1.player, Math.Max(5, reward / 200));
+
+                var npc = Game1.getCharacterFromName(offer.NpcName);
+                if (npc != null)
+                    Game1.player.changeFriendship(30, npc);
+
+                contractsFulfilled++;
+                incomeEarned += reward;
+
+                MarketManager.RecordSale(
+                    ItemRegistry.Create(offer.ItemQualifiedId),
+                    offer.Quantity);
+
+                LogHelper.Info($"[Truck] Fulfilled offer {offer.OfferId}: {offer.Quantity}x {offer.ItemDisplayName} → {reward}g");
+                Game1.addHUDMessage(new HUDMessage(
+                    $"Delivery: {offer.ItemDisplayName} → {offer.NpcName}! +{reward}g",
+                    HUDMessage.achievement_type));
+            }
+
+            // Return non-null, non-empty leftovers
+            return remaining.Where(i => i != null && i.Stack > 0).ToList();
+        }
+
+        // ══════════════════════════════════════════════════════════════
         //  SERIALIZATION
         // ══════════════════════════════════════════════════════════════
 
