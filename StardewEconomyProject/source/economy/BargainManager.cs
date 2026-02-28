@@ -42,9 +42,16 @@ namespace StardewEconomyProject.source.economy
         /// <summary>The calculated equilibrium price.</summary>
         public int EquilibriumPrice { get; set; }
 
-        /// <summary>Days remaining for delivery (if accepted).</summary>
+        /// <summary>
+        /// Days remaining for delivery.
+        /// Accepted offers: counts down from acceptance day.
+        /// Pending offers: returns the full delivery window (DeliveryDeadlineDays).
+        /// </summary>
         [JsonIgnore]
-        public int DeliveryDaysRemaining => IsAccepted ? Math.Max(0, DeliveryDeadlineDays - (Game1.Date.TotalDays - CreatedDay)) : -1;
+        public int DeliveryDaysRemaining =>
+            IsAccepted
+                ? Math.Max(0, DeliveryDeadlineDays - (Game1.Date.TotalDays - CreatedDay))
+                : DeliveryDeadlineDays;
     }
 
     /// <summary>

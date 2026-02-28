@@ -20,10 +20,13 @@ namespace StardewEconomyProject.source.harmony_patches
         private static IMonitor _monitor;
 
         // Our custom Big Craftable item IDs (must match Data/BigCraftables keys in the CP pack)
-        public const string ContractBoardId   = "sep.ContractBoard";
-        public const string MarketTerminalId  = "sep.MarketTerminal";
-        public const string ATMachineId       = "sep.ATMachine";
-        public const string SupercomputerId   = "sep.Supercomputer";
+        // The CP pack uses {{ModId}} = "neroyuki.stardeweconomyitems" as prefix.
+        public const string ContractBoardId   = "neroyuki.stardeweconomyitems_ContractBoard";
+        public const string MarketTerminalId  = "neroyuki.stardeweconomyitems_MarketTerminal";
+        public const string ATMachineId       = "neroyuki.stardeweconomyitems_ATMachine";
+        public const string SupercomputerId   = "neroyuki.stardeweconomyitems_Supercomputer";
+        /// <summary>Town-fixture variant of the ATM — Fragility 2, spawned by the C# mod in Pelican Town.</summary>
+        public const string TownATMachineId   = "neroyuki.stardeweconomyitems_TownATMachine";
 
         public static void Initialize(IMonitor monitor)
         {
@@ -60,12 +63,13 @@ namespace StardewEconomyProject.source.harmony_patches
                     break;
 
                 case MarketTerminalId:
-                    Game1.activeClickableMenu = new ForecastMenu();
+                    Game1.activeClickableMenu = new BargainMenu();
                     __result = true;
-                    _monitor?.Log("[SEP] Opened Forecast menu via big craftable.", LogLevel.Trace);
+                    _monitor?.Log("[SEP] Opened Bargain menu via Market Terminal.", LogLevel.Trace);
                     break;
 
                 case ATMachineId:
+                case TownATMachineId:
                     Game1.activeClickableMenu = new BankMenu();
                     __result = true;
                     _monitor?.Log("[SEP] Opened Bank menu via big craftable.", LogLevel.Trace);
@@ -84,6 +88,7 @@ namespace StardewEconomyProject.source.harmony_patches
             return itemId == ContractBoardId
                 || itemId == MarketTerminalId
                 || itemId == ATMachineId
+                || itemId == TownATMachineId
                 || itemId == SupercomputerId;
         }
     }

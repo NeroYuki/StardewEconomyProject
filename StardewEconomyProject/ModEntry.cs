@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -6,6 +8,7 @@ using StardewEconomyProject.source.economy;
 using StardewEconomyProject.source.menus;
 using StardewEconomyProject.source.harmony_patches;
 using StardewValley.Menus;
+using SObject = StardewValley.Object;
 
 namespace StardewEconomyProject
 {
@@ -22,6 +25,14 @@ namespace StardewEconomyProject
         private const string SaveKey_Bargain     = "neroyuki.stardeweconomy/BargainData";
         private const string SaveKey_Reputation  = "neroyuki.stardeweconomy/ReputationData";
         private const string SaveKey_Truck       = "neroyuki.stardeweconomy/TruckData";
+
+        // CP-pack item IDs (CP ModId = neroyuki.stardeweconomyitems)
+        /// <summary>PDA inventory item — must be in the player's bag to use keyboard shortcuts.</summary>
+        private const string PdaItemId = "neroyuki.stardeweconomyitems_PDA";
+
+        // Tile coordinates for the permanently-spawned Town ATM (adjust if needed in-game).
+        // Position is in the town plaza, south of Pierre's shop, near the fountain path.
+        private static readonly Vector2 TownATMTilePos = new Vector2(40, 68);
 
         /*********
         ** Public methods
@@ -160,6 +171,9 @@ namespace StardewEconomyProject
 
             // ── Send welcome mail on first load ──
             MailManager.SendWelcome();
+
+            // ── Spawn permanent Town ATM fixture ──
+            SpawnTownATMIfNeeded();
         }
 
         /// <summary>Serialize all economy state before save.</summary>
@@ -297,16 +311,129 @@ namespace StardewEconomyProject
 
             var config = ModConfig.GetInstance();
 
+            // ── Contract Board ─────────────────────────────────────────
             if (e.Button == config.ContractBoardKey)
+            {
+                if (!PlayerHasPDA()) { ShowNoPdaError(); return; }
                 Game1.activeClickableMenu = new ContractBoardMenu();
+            }
+
+            // ── Bank / ATM ─────────────────────────────────────────────
             else if (e.Button == config.BankKey)
+            {
+                if (!PlayerHasPDA()) { ShowNoPdaError(); return; }
+                if (!HasMachineAnywhere(BigCraftablePatches.ATMachineId))
+                {
+                    Game1.addHUDMessage(new HUDMessage(
+                        "You need an ATM Machine placed on your farm or in your house to access banking remotely.",
+                        HUDMessage.error_type));
+                    return;
+                }
                 Game1.activeClickableMenu = new BankMenu();
+            }
+
+            // ── Tax Bill ───────────────────────────────────────────────
             else if (e.Button == config.TaxBillKey)
+            {
+                if (!PlayerHasPDA()) { ShowNoPdaError(); return; }
                 Game1.activeClickableMenu = new TaxBillMenu();
+            }
+
+            // ── Bargain / Trade Offers ─────────────────────────────────
             else if (e.Button == config.BargainKey)
+            {
+                if (!PlayerHasPDA()) { ShowNoPdaError(); return; }
                 Game1.activeClickableMenu = new BargainMenu();
+            }
+
+            // ── Supercomputer 14-day Forecast ──────────────────────────
             else if (e.Button == config.ForecastKey)
+            {
+                if (!PlayerHasPDA()) { ShowNoPdaError(); return; }
+                if (!HasMachineAnywhere(BigCraftablePatches.SupercomputerId))
+                {
+                    Game1.addHUDMessage(new HUDMessage(
+                        "You need a Supercomputer placed on your farm or in your house to access the forecast remotely.",
+                        HUDMessage.error_type));
+                    return;
+                }
                 Game1.activeClickableMenu = new ForecastMenu();
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  PDA / MACHINE HELPERS
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>Returns true if the local player has a PDA anywhere in their inventory.</summary>
+        private static bool PlayerHasPDA()
+        {
+            return Game1.player.Items.Any(item => item?.ItemId == PdaItemId);
+        }
+
+        /// <summary>Shows the standard "you need a PDA" HUD error.</summary>
+        private static void ShowNoPdaError()
+        {
+            Game1.addHUDMessage(new HUDMessage(
+                "You need a PDA in your inventory to access the economy network remotely.",
+                HUDMessage.error_type));
+        }
+
+        /// <summary>
+        /// Returns true if the local player has at least one of the specified
+        /// BigCraftable placed anywhere on their farm or inside their farmhouse.
+        /// </summary>
+        private static bool HasMachineAnywhere(string machineId)
+        {
+            var farm = Game1.getFarm();
+            var farmhouse = Game1.getLocationFromName("FarmHouse");
+
+            bool onFarm = farm?.objects.Values
+                .Any(o => o.bigCraftable.Value && o.ItemId == machineId) == true;
+            bool inHouse = farmhouse?.objects.Values
+                .Any(o => o.bigCraftable.Value && o.ItemId == machineId) == true;
+
+            return onFarm || inHouse;
+        }
+
+        /// <summary>
+        /// Spawns the permanent indestructible Town ATM at <see cref="TownATMTilePos"/>
+        /// if it is not already there.  Called each time a save is loaded so the fixture
+        /// is restored even if something removed it while the game was running.
+        /// </summary>
+        private void SpawnTownATMIfNeeded()
+        {
+            try
+            {
+                var town = Game1.getLocationFromName("Town");
+                if (town == null)
+                {
+                    Monitor.Log("[SEP] Town location not found — cannot spawn Town ATM.", LogLevel.Warn);
+                    return;
+                }
+
+                // Already present and correct item?
+                if (town.objects.TryGetValue(TownATMTilePos, out var existing)
+                    && existing.ItemId == BigCraftablePatches.TownATMachineId)
+                {
+                    Monitor.Log("[SEP] Town ATM Machine already present — skipping spawn.", LogLevel.Trace);
+                    return;
+                }
+
+                // Remove anything blocking the tile (shouldn't happen in vanilla Town)
+                town.objects.Remove(TownATMTilePos);
+
+                // Create and place the Town ATM
+                var atm = (SObject)ItemRegistry.Create($"(BC){BigCraftablePatches.TownATMachineId}");
+                atm.IsSpawnedObject = false;
+                town.objects[TownATMTilePos] = atm;
+
+                Monitor.Log($"[SEP] Spawned Town ATM Machine at tile ({TownATMTilePos.X}, {TownATMTilePos.Y}) in Town.", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"[SEP] Failed to spawn Town ATM Machine:\n{ex}", LogLevel.Error);
+            }
         }
 
         /// <summary>Helper: open a menu from a console command if a save is loaded.</summary>

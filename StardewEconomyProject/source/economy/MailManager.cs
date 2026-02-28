@@ -10,16 +10,17 @@ namespace StardewEconomyProject.source.economy
     public static class MailManager
     {
         // ── Mail IDs (must match keys in the CP pack's Data/Mail entries) ──
-        public const string Mail_Welcome = "sep.welcome";
-        public const string Mail_TaxBill = "sep.taxBill";
-        public const string Mail_ContractComplete = "sep.contractComplete";
-        public const string Mail_ContractBreach = "sep.contractBreach";
-        public const string Mail_LoanApproved = "sep.loanApproved";
-        public const string Mail_LoanPaymentDue = "sep.loanPaymentDue";
-        public const string Mail_DebtWarning = "sep.debtWarning";
-        public const string Mail_ReputationNational = "sep.reputationNational";
-        public const string Mail_ReputationInternational = "sep.reputationInternational";
-        public const string Mail_MarketSurge = "sep.marketSurge";
+        // The CP pack uses {{ModId}} = "neroyuki.stardeweconomyitems" as prefix.
+        public const string Mail_Welcome = "neroyuki.stardeweconomyitems_welcome";
+        public const string Mail_TaxBill = "neroyuki.stardeweconomyitems_taxBill";
+        public const string Mail_ContractComplete = "neroyuki.stardeweconomyitems_contractComplete";
+        public const string Mail_ContractBreach = "neroyuki.stardeweconomyitems_contractBreach";
+        public const string Mail_LoanApproved = "neroyuki.stardeweconomyitems_loanApproved";
+        public const string Mail_LoanPaymentDue = "neroyuki.stardeweconomyitems_loanPaymentDue";
+        public const string Mail_DebtWarning = "neroyuki.stardeweconomyitems_debtWarning";
+        public const string Mail_ReputationNational = "neroyuki.stardeweconomyitems_reputationNational";
+        public const string Mail_ReputationInternational = "neroyuki.stardeweconomyitems_reputationInternational";
+        public const string Mail_MarketSurge = "neroyuki.stardeweconomyitems_marketSurge";
 
         // ══════════════════════════════════════════════════════════════
         //  SEND METHODS

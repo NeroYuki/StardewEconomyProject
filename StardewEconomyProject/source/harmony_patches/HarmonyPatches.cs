@@ -110,18 +110,26 @@ namespace StardewEconomyProject.source.harmony_patches
             monitor.Log("Economy harmony patches applied successfully.", LogLevel.Info);
 
             // ── ShopMenu sell tracking (bottles + income) ──
-            harmony.Patch(
-                original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveLeftClick),
-                    new[] { typeof(int), typeof(int), typeof(bool) }),
-                prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Prefix)),
-                postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Postfix))
-            );
-            harmony.Patch(
-                original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveRightClick),
-                    new[] { typeof(int), typeof(int), typeof(bool) }),
-                prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Prefix)),
-                postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Postfix))
-            );
+            try
+            {
+                harmony.Patch(
+                    original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveLeftClick),
+                        new[] { typeof(int), typeof(int), typeof(bool) }),
+                    prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Prefix)),
+                    postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveLeftClick_Postfix))
+                );
+                harmony.Patch(
+                    original: AccessTools.Method(typeof(ShopMenu), nameof(ShopMenu.receiveRightClick),
+                        new[] { typeof(int), typeof(int), typeof(bool) }),
+                    prefix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Prefix)),
+                    postfix: new HarmonyMethod(typeof(ShopPatches), nameof(ShopPatches.ReceiveRightClick_Postfix))
+                );
+                monitor.Log("ShopMenu sell-tracking patches applied.", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                monitor.Log($"Could not patch ShopMenu sell tracking: {ex}", LogLevel.Error);
+            }
 
             // ── TV Market Report channel ──
             TvPatches.Apply(harmony);

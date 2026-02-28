@@ -22,7 +22,7 @@ namespace StardewEconomyProject.source.harmony_patches
         private static IMonitor _monitor;
 
         // Building ID used in Data/Buildings (must match content.json key)
-        public const string DeliveryTruckBuildingId = "neroyuki.stardeweconomy_DeliveryTruck";
+        public const string DeliveryTruckBuildingId = "neroyuki.stardeweconomyitems_DeliveryTruck";
 
         // Action token fired by the building's DefaultAction field
         public const string ActionOpenDeliveryTruck = "sep.OpenDeliveryTruck";

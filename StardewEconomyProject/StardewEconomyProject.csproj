@@ -3,7 +3,7 @@
   <PropertyGroup>
     <AssemblyName>StardewEconomyProject</AssemblyName>
     <RootNamespace>StardewEconomyProject</RootNamespace>
-    <Version>0.1.0-alpha</Version>
+    <Version>0.1.1-alpha</Version>
     <TargetFramework>net6.0</TargetFramework>
     <EnableHarmony>true</EnableHarmony>
     <Authors>NeroYuki</Authors>
@@ -29,5 +29,9 @@
     <None Update="economyConfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

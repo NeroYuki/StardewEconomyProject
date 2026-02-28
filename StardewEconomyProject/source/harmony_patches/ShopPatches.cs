@@ -48,6 +48,7 @@ namespace StardewEconomyProject.source.harmony_patches
                 _preClickStacks.TryGetValue(key, out int existing);
                 _preClickStacks[key] = existing + item.Stack;
             }
+            LogHelper.Trace($"[ShopPatches] Snapshot: {_preClickMoney}g, {_preClickStacks.Count} item types");
         }
 
         /// <summary>
@@ -57,7 +58,13 @@ namespace StardewEconomyProject.source.harmony_patches
         private static void DiffAndRecord()
         {
             int earned = Game1.player.Money - _preClickMoney;
-            if (earned <= 0) return; // No sale happened
+            if (earned <= 0)
+            {
+                LogHelper.Trace($"[ShopPatches] No sale detected (earned: {earned}g)");
+                return; // No sale happened
+            }
+
+            Monitor?.Log($"[ShopPatches] Sale detected: earned {earned}g", LogLevel.Info);
 
             // Record income for tax assessment
             economy.TaxManager.RecordIncome(earned);
@@ -80,9 +87,9 @@ namespace StardewEconomyProject.source.harmony_patches
                 int sold = kvp.Value - remaining;
                 if (sold > 0)
                 {
-                    economy.MarketManager.GetOrCreateBottle(kvp.Key.qualifiedId, kvp.Key.quality)
-                        .AddVolume(sold);
-                    LogHelper.Trace($"[Shop] Sold {sold}x {kvp.Key.qualifiedId} Q{kvp.Key.quality} → bottle (income: {earned}g)");
+                    var bottle = economy.MarketManager.GetOrCreateBottle(kvp.Key.qualifiedId, kvp.Key.quality);
+                    bottle.AddVolume(sold);
+                    Monitor?.Log($"[ShopPatches] Sold {sold}x {kvp.Key.qualifiedId} Q{kvp.Key.quality} → bottle {bottle.BottleId} (vol: {bottle.CurrentVolume:F1}/{bottle.MaxCapacity:F1}, sat: {bottle.Saturation:P1})", LogLevel.Info);
                 }
             }
         }

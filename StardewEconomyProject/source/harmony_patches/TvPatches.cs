@@ -144,7 +144,9 @@ namespace StardewEconomyProject.source.harmony_patches
 
         /// <summary>
         /// Generates a market report string for the TV channel display.
-        /// Called from a console command or from ModEntry's TV integration.
+        /// Lists every tracked item grouped by category, showing price multiplier
+        /// Shows only top 10 notable movements and surge alerts.
+        /// Players can check full saturation details in the collection menu.
         /// </summary>
         public static string GenerateMarketReport()
         {
@@ -155,7 +157,7 @@ namespace StardewEconomyProject.source.harmony_patches
             var lines = new List<string>();
             lines.Add("Welcome to the Market & Trade Report!^Here's today's notable market movements:");
 
-            // === Section 1: Top 10 outstanding saturation changes ===
+            // ── Top 10 biggest saturation changes ──
             var topChanges = MarketManager.GetTopSaturationChanges(10);
             if (topChanges.Count > 0)
             {
@@ -172,8 +174,8 @@ namespace StardewEconomyProject.source.harmony_patches
                 lines.Add("Markets are stable today — no significant movements.");
             }
 
-            // === Section 2: Surge alerts ===
-            var surges = bottles.Values.Where(b => b.IsSurgeActive).ToList();
+            // ── Surge alerts ──
+            var surges = bottles.Values.Where(b => b.IsSurgeActive && b.QualityTier == 0).ToList();
             if (surges.Count > 0)
             {
                 string surgeNames = string.Join(", ",
@@ -181,7 +183,7 @@ namespace StardewEconomyProject.source.harmony_patches
                 lines.Add($"^SURGE ALERT: {surgeNames} — massive demand spike! Sell now for premium prices!");
             }
 
-            // === Section 3: General seasonal tip ===
+            // ── Seasonal tip ──
             lines.Add(GetSeasonalTip());
 
             return string.Join("^", lines);

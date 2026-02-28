@@ -235,11 +235,12 @@ namespace StardewEconomyProject.source.economy
         }
 
         /// <summary>
-        /// Load all skill and profession icons from the CP-provided spritesheet.
+        /// Load all skill and profession icons from the mod's own assets folder.
+        /// Uses SMAPI ModContent so we don't depend on Content Patcher timing.
         /// </summary>
         private static void LoadSkillIcons()
         {
-            Texture2D sheet = Game1.content.Load<Texture2D>(SkillIconsAssetPath);
+            Texture2D sheet = _modHelper.ModContent.Load<Texture2D>("assets/skill-icons.png");
 
             // Main skill icon — cell 0 (16×16)
             Instance.Icon = ExtractSubTexture(sheet, new Rectangle(0, 0, 16, 16));

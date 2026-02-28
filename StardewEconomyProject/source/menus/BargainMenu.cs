@@ -185,7 +185,7 @@ namespace StardewEconomyProject.source.menus
                 },
                 new Label()
                 {
-                    String = $"Deadline: {daysLeft} day(s)",
+                    String = $"Deliver within: {daysLeft} day(s)",
                     LocalPosition = new Vector2(Col(0.62f), (int)(4 * S)),
                     IdleTextColor = daysLeft <= 1 ? Color.OrangeRed : Color.DimGray,
                     NonBoldScale = 0.85f,
