@@ -24,6 +24,14 @@
             "FromFile": "assets/delivery-truck.png"
         },
 
+        // Delivery Motorbike building sprite
+        // A single 48×32 px texture for the 3×2 tile building footprint.
+        {
+            "Action": "Load",
+            "Target": "Mods/{{ModId}}/DeliveryMotorbike",
+            "FromFile": "assets/delivery-motorbike.png"
+        },
+
         // PDA item sprite 
         // A single 16x16 px texture
         {
@@ -186,6 +194,22 @@
                     "Size": { "X": 5, "Y": 3 },
                     "CollisionMap": "OOOOO\nOOOOO\nXXXXX",
                     "DefaultAction": "sep.OpenDeliveryTruck",
+                    "DrawShadow": true
+                },
+                "{{ModId}}_DeliveryMotorbike": {
+                    "Name": "Delivery Motorbike",
+                    "Description": "A nimble motorbike for quick local deliveries. Can only deliver to Pelican Town merchants — not Zuzu City or international customers. Cheaper and faster to build than a truck.",
+                    "Texture": "Mods/{{ModId}}/DeliveryMotorbike",
+                    "Builder": "Robin",
+                    "BuildCost": 3500,
+                    "BuildDays": 0,
+                    "BuildMaterials": [
+                        { "ItemId": "(O)335", "Amount": 5 },
+                        { "ItemId": "(O)388", "Amount": 30 }
+                    ],
+                    "Size": { "X": 3, "Y": 2 },
+                    "CollisionMap": "OOO\nXXX",
+                    "DefaultAction": "sep.OpenDeliveryMotorbike",
                     "DrawShadow": true
                 }
             }

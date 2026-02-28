@@ -148,8 +148,12 @@ namespace StardewEconomyProject.source.economy
             // Clean up expired/completed offers
             _activeOffers.RemoveAll(o => o.IsExpired || o.IsDelivered || o.IsRejected);
 
-            // Generate new offers from NPCs (1-3 per day)
-            int offerCount = 1 + _bargainRng.Next(3);
+            // Generate new offers from NPCs — scales with game progression
+            // Early game: 1-3 offers/day, late game: 3-6 offers/day
+            int progression = GetProgressionIndex();
+            int minOffers = 1 + Math.Min(progression / 4, 2); // 1..3
+            int maxOffers = 3 + Math.Min(progression / 3, 3); // 3..6
+            int offerCount = minOffers + _bargainRng.Next(maxOffers - minOffers + 1);
             for (int i = 0; i < offerCount; i++)
             {
                 GenerateRandomOffer();
@@ -160,9 +164,54 @@ namespace StardewEconomyProject.source.economy
         //  OFFER GENERATION
         // ══════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Returns a 0-based progression index: Spring Y1 = 0, Winter Y3 = 11.
+        /// Mirrors ContractManager.GetProgressionIndex() for consistent scaling.
+        /// </summary>
+        private static int GetProgressionIndex()
+        {
+            int seasonIdx = Game1.currentSeason switch
+            {
+                "spring" => 0,
+                "summer" => 1,
+                "fall"   => 2,
+                _        => 3,
+            };
+            return (Game1.year - 1) * 4 + seasonIdx;
+        }
+
+        /// <summary>
+        /// Returns the quantity multiplier for bargain offers, same curve as contracts.
+        /// Spring Y1 → ~1–5, Winter Y3 → ~60–120, scaled by config.
+        /// </summary>
+        private static int GetProgressionQuantity(Random rng, double configScale)
+        {
+            int idx = GetProgressionIndex();
+            float t = Math.Min(idx, 15) / 11f;
+
+            double lowEnd  = 1.0 + 59.0 * Math.Pow(t, 2.0);
+            double highEnd = 5.0 + 115.0 * Math.Pow(t, 2.0);
+
+            double raw = lowEnd + rng.NextDouble() * (highEnd - lowEnd);
+            int quantity = Math.Max(1, (int)(raw * configScale));
+            return quantity;
+        }
+
+        /// <summary>
+        /// Check if an item is available in the current season.
+        /// Delegates to SeasonalItemRegistry for consistent seasonal data
+        /// across both contract and bargain systems.
+        /// </summary>
+        private static bool IsItemInSeason(Item item)
+        {
+            return SeasonalItemRegistry.IsItemInSeason(item);
+        }
+
         /// <summary>Generate a random NPC offer based on current market conditions.</summary>
         private static void GenerateRandomOffer()
         {
+            var config = ModConfig.GetInstance();
+
             // Pick an NPC who isn't on cooldown
             var availableNpcs = NpcPatience.Keys
                 .Where(n => !_npcCooldowns.ContainsKey(n) || _npcCooldowns[n] <= Game1.Date.TotalDays)
@@ -180,14 +229,41 @@ namespace StardewEconomyProject.source.economy
             var playerItems = GetPlayerAvailableItems();
             if (playerItems.Count == 0) return;
 
-            var targetItem = playerItems[_bargainRng.Next(playerItems.Count)];
+            // ── Seasonal bias: prefer in-season items, but sometimes pick off-season ──
+            var inSeason  = playerItems.Where(i => IsItemInSeason(i)).ToList();
+            var offSeason = playerItems.Where(i => !IsItemInSeason(i)).ToList();
+
+            Item targetItem;
+            bool isOffSeason = false;
+
+            if (inSeason.Count > 0 && offSeason.Count > 0)
+            {
+                if (_bargainRng.NextDouble() < config.InSeasonBias)
+                    targetItem = inSeason[_bargainRng.Next(inSeason.Count)];
+                else
+                {
+                    targetItem = offSeason[_bargainRng.Next(offSeason.Count)];
+                    isOffSeason = true;
+                }
+            }
+            else if (inSeason.Count > 0)
+                targetItem = inSeason[_bargainRng.Next(inSeason.Count)];
+            else if (offSeason.Count > 0)
+            {
+                targetItem = offSeason[_bargainRng.Next(offSeason.Count)];
+                isOffSeason = true;
+            }
+            else
+                targetItem = playerItems[_bargainRng.Next(playerItems.Count)];
 
             // Calculate WTP based on item price and market saturation
             int vanillaPrice = targetItem.sellToStorePrice(-1L);
-            // WTP for bargaining should be much higher than the nerfed free-sell price
-            // It's based on vanilla price modified by saturation
             float saturation = MarketManager.GetRawSaturationMultiplier(targetItem);
-            int wtp = Math.Max(1, (int)(vanillaPrice * (10.0 / ModConfig.GetInstance().GlobalSellMultiplier) * saturation));
+            int wtp = Math.Max(1, (int)(vanillaPrice * (10.0 / config.GlobalSellMultiplier) * saturation));
+
+            // Off-season bonus: NPCs pay more for items that aren't currently growing
+            if (isOffSeason)
+                wtp = (int)(wtp * config.BargainOffSeasonBonus);
 
             if (wtp <= vanillaPrice) return; // Not worth offering
 
@@ -205,9 +281,10 @@ namespace StardewEconomyProject.source.economy
             // Equilibrium price (midpoint adjusted by friendship)
             int equilibrium = (int)((wtp + vanillaPrice) / 2f * friendshipModifier);
 
-            // Determine quantity (1-5 based on what player has)
-            int maxQty = Math.Min(targetItem.Stack, 5);
-            int quantity = Math.Max(1, _bargainRng.Next(1, maxQty + 1));
+            // ── Quantity: progression-based scaling, capped by what player actually has ──
+            int progressionQty = GetProgressionQuantity(_bargainRng, config.BargainQuantityScale);
+            int maxQty = Math.Max(1, targetItem.Stack);
+            int quantity = Math.Clamp(progressionQty, 1, maxQty);
 
             var offer = new BargainOffer
             {
@@ -220,13 +297,13 @@ namespace StardewEconomyProject.source.economy
                 RoundNumber = 1,
                 MaxRounds = 3,
                 CreatedDay = Game1.Date.TotalDays,
-                DeliveryDeadlineDays = ModConfig.GetInstance().BargainingDeliveryDays,
+                DeliveryDeadlineDays = config.BargainingDeliveryDays,
                 WillingnessToPay = wtp * quantity,
                 EquilibriumPrice = equilibrium * quantity,
             };
 
             _activeOffers.Add(offer);
-            LogHelper.Debug($"[Bargain] {npcName} offers {offer.OfferPrice}g for {quantity}x {targetItem.DisplayName} (WTP: {wtp * quantity}g)");
+            LogHelper.Debug($"[Bargain] {npcName} offers {offer.OfferPrice}g for {quantity}x {targetItem.DisplayName} (WTP: {wtp * quantity}g){(isOffSeason ? " [off-season]" : "")}");
         }
 
         /// <summary>Get items available in player's inventory for bargaining.</summary>

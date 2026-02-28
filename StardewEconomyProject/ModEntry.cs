@@ -25,6 +25,7 @@ namespace StardewEconomyProject
         private const string SaveKey_Bargain     = "neroyuki.stardeweconomy/BargainData";
         private const string SaveKey_Reputation  = "neroyuki.stardeweconomy/ReputationData";
         private const string SaveKey_Truck       = "neroyuki.stardeweconomy/TruckData";
+        private const string SaveKey_Motorbike   = "neroyuki.stardeweconomy/MotorbikeData";
 
         // CP-pack item IDs (CP ModId = neroyuki.stardeweconomyitems)
         /// <summary>PDA inventory item — must be in the player's bag to use keyboard shortcuts.</summary>
@@ -135,6 +136,9 @@ namespace StardewEconomyProject
             var player = Game1.player;
             int reputationLevel = ReputationSkill.GetLevel(player);
 
+            // ── Seasonal Item Registry (must be built before contract/bargain managers) ──
+            SeasonalItemRegistry.Rebuild();
+
             // ── Market Manager ──
             if (player.modData.TryGetValue(SaveKey_Market, out string marketJson))
                 MarketManager.Deserialize(marketJson);
@@ -167,6 +171,12 @@ namespace StardewEconomyProject
             else
                 source.economy.DeliveryTruckManager.Initialize();
 
+            // ── Delivery Motorbike ──
+            if (player.modData.TryGetValue(SaveKey_Motorbike, out string motorbikeJson))
+                source.economy.DeliveryMotorbikeManager.Deserialize(motorbikeJson);
+            else
+                source.economy.DeliveryMotorbikeManager.Initialize();
+
             Monitor.Log($"Economy systems loaded. Season: {Game1.currentSeason}, Day: {Game1.dayOfMonth}, Reputation: Lv{reputationLevel}", LogLevel.Info);
 
             // ── Send welcome mail on first load ──
@@ -187,6 +197,7 @@ namespace StardewEconomyProject
             player.modData[SaveKey_Bank]      = BankManager.Serialize();
             player.modData[SaveKey_Bargain]   = BargainManager.Serialize();
             player.modData[SaveKey_Truck]     = source.economy.DeliveryTruckManager.Serialize();
+            player.modData[SaveKey_Motorbike] = source.economy.DeliveryMotorbikeManager.Serialize();
 
             Monitor.Log("Economy state saved.", LogLevel.Trace);
         }
@@ -197,8 +208,9 @@ namespace StardewEconomyProject
             var config = ModConfig.GetInstance();
             var player = Game1.player;
 
-            // ── Delivery Truck: process yesterday's cargo before anything else ──
+            // ── Delivery Truck & Motorbike: process yesterday's cargo before anything else ──
             source.economy.DeliveryTruckManager.ProcessDayEnd();
+            source.economy.DeliveryMotorbikeManager.ProcessDayEnd();
 
             // ── Market Manager daily update ──
             MarketManager.OnDayStarted();
@@ -300,6 +312,7 @@ namespace StardewEconomyProject
             BankManager.Reset();
             BargainManager.Reset();
             source.economy.DeliveryTruckManager.Reset();
+            source.economy.DeliveryMotorbikeManager.Reset();
         }
 
         /// <summary>Handle key presses to open economy menus.</summary>

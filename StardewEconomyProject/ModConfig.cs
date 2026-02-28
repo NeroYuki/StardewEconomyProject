@@ -50,14 +50,51 @@ namespace StardewEconomyProject
         /// </summary>
         public double ContractPenaltyMultiplier { get; set; } = 0.25;
 
-        /// <summary>Maximum number of active contracts the player may hold.</summary>
-        public int MaxActiveContracts { get; set; } = 3;
+        /// <summary>Maximum number of active contracts the player may hold (base, before rep bonuses).</summary>
+        public int MaxActiveContracts { get; set; } = 5;
 
         /// <summary>Number of contracts available on the board each refresh.</summary>
-        public int ContractsPerRefresh { get; set; } = 5;
+        public int ContractsPerRefresh { get; set; } = 8;
 
         /// <summary>Days between contract board refreshes.</summary>
         public int ContractRefreshDays { get; set; } = 7;
+
+        /// <summary>
+        /// Base contract duration in days. Actual duration is scaled upward
+        /// by quantity so players have enough time to grow crops.
+        /// Domain: [7 - 56]
+        /// </summary>
+        public int ContractDurationBase { get; set; } = 14;
+
+        /// <summary>Maximum contract duration in days. Domain: [14 - 112]</summary>
+        public int ContractDurationMax { get; set; } = 56;
+
+        /// <summary>
+        /// Global multiplier applied to contract quantity requirements.
+        /// 1.0 = default scaling.  Lower = easier contracts.  Domain: [0.1 - 5.0]
+        /// </summary>
+        public double ContractQuantityScale { get; set; } = 1.0;
+
+        /// <summary>
+        /// Probability (0.0-1.0) that a contract picks an in-season item.
+        /// Remainder is the chance of an off-season item.
+        /// </summary>
+        public double InSeasonBias { get; set; } = 0.70;
+
+        /// <summary>
+        /// Reward multiplier for off-season item contracts.
+        /// Off-season items are harder to obtain, so they pay more.
+        /// Domain: [1.0 - 5.0]
+        /// </summary>
+        public double OffSeasonRewardBonus { get; set; } = 1.5;
+
+        /// <summary>
+        /// Probability (0.0-1.0) that a generated contract draws from seasonal
+        /// categories (Vegetable, Fruit, Flower, Fish) rather than non-seasonal
+        /// categories (AnimalProduct, ArtisanGoods, Mineral, Cooking, Forage, Default).
+        /// 0.65 = 65% seasonal, 35% non-seasonal.  Domain: [0.0 - 1.0]
+        /// </summary>
+        public double SeasonalContractBias { get; set; } = 0.65;
 
         // ══════════════════════════════════════════════════════════════
         //  VOLUMETRIC SATURATION ("BOTTLE") MODEL
@@ -115,7 +152,20 @@ namespace StardewEconomyProject
         public int BargainingCooldownHours { get; set; } = 48;
 
         /// <summary>Days given for delivery after accepting a bargaining deal.</summary>
-        public int BargainingDeliveryDays { get; set; } = 2;
+        public int BargainingDeliveryDays { get; set; } = 3;
+
+        /// <summary>
+        /// Global multiplier applied to bargain offer quantities.
+        /// 1.0 = default scaling.  Domain: [0.1 - 5.0]
+        /// </summary>
+        public double BargainQuantityScale { get; set; } = 1.0;
+
+        /// <summary>
+        /// WTP bonus multiplier for off-season items in bargain offers.
+        /// NPCs are willing to pay more for items that aren't in season.
+        /// Domain: [1.0 - 5.0]
+        /// </summary>
+        public double BargainOffSeasonBonus { get; set; } = 1.5;
 
         // ══════════════════════════════════════════════════════════════
         //  TAXATION (Ferngill Revenue Service)

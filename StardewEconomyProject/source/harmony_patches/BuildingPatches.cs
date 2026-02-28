@@ -21,11 +21,13 @@ namespace StardewEconomyProject.source.harmony_patches
     {
         private static IMonitor _monitor;
 
-        // Building ID used in Data/Buildings (must match content.json key)
+        // Building IDs used in Data/Buildings (must match content.json keys)
         public const string DeliveryTruckBuildingId = "neroyuki.stardeweconomyitems_DeliveryTruck";
+        public const string DeliveryMotorbikeBuildingId = "neroyuki.stardeweconomyitems_DeliveryMotorbike";
 
-        // Action token fired by the building's DefaultAction field
+        // Action tokens fired by the building's DefaultAction field
         public const string ActionOpenDeliveryTruck = "sep.OpenDeliveryTruck";
+        public const string ActionOpenDeliveryMotorbike = "sep.OpenDeliveryMotorbike";
 
         public static void Initialize(IMonitor monitor)
         {
@@ -79,6 +81,17 @@ namespace StardewEconomyProject.source.harmony_patches
                     {
                         Game1.activeClickableMenu = DeliveryTruckMenu.Open();
                         _monitor?.Log("[SEP] Opened Delivery Truck cargo hold via building action.", LogLevel.Trace);
+                    }
+                    __result = true;
+                    return false; // skip original
+                }
+
+                if (token == ActionOpenDeliveryMotorbike)
+                {
+                    if (who.IsLocalPlayer)
+                    {
+                        Game1.activeClickableMenu = DeliveryMotorbikeMenu.Open();
+                        _monitor?.Log("[SEP] Opened Delivery Motorbike cargo hold via building action.", LogLevel.Trace);
                     }
                     __result = true;
                     return false; // skip original

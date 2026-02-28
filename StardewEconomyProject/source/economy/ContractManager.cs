@@ -211,6 +211,16 @@ namespace StardewEconomyProject.source.economy
             "Evelyn", "Harvey", "Marnie", "Emily", "Lewis", "Demetrius"
         };
 
+        /// <summary>
+        /// Returns true if the contract's requester is a Pelican Town (regional) NPC.
+        /// Used by the Delivery Motorbike which can only serve local customers.
+        /// </summary>
+        public static bool IsRegionalContract(Contract contract)
+        {
+            return contract?.RequesterNpc != null
+                && PelicanTownNpcs.Contains(contract.RequesterNpc);
+        }
+
         // ── Zuzu City NPC list (for RegionalMogul profession, National tier Lv5+) ──
         private static readonly HashSet<string> ZuzuCityNpcs = new()
         {
@@ -262,18 +272,55 @@ namespace StardewEconomyProject.source.economy
             ["Overseas Trading Company"] = new[] { "ArtisanGoods", "Cooking", "Default" },
         };
 
-        // ── Common contract items by category ──
-        private static readonly Dictionary<string, string[]> ContractItems = new()
+        // ── Item pools are now built dynamically by SeasonalItemRegistry ──
+        // Crops + fruit trees: seasonal data from Data/Crops and Data/FruitTrees
+        // Fish: seasonal data from Data/Locations fish entries
+        // Non-seasonal categories (AnimalProduct, ArtisanGoods, Mineral, etc.): static pools
+
+        // ══════════════════════════════════════════════════════════════
+        //  SEASON / PROGRESSION HELPERS
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns a 0-based progression index: Spring Y1 = 0, Winter Y3 = 11.
+        /// After Y3 it keeps climbing but the scaling formula is clamped elsewhere.
+        /// </summary>
+        private static int GetProgressionIndex()
         {
-            ["Vegetable"] = new[] { "(O)24", "(O)188", "(O)190", "(O)192", "(O)248", "(O)250", "(O)252", "(O)254", "(O)256", "(O)258", "(O)260", "(O)262", "(O)264", "(O)266", "(O)268", "(O)270", "(O)272", "(O)274", "(O)278", "(O)280", "(O)284" },
-            ["Fruit"] = new[] { "(O)296", "(O)396", "(O)398", "(O)400", "(O)258", "(O)252", "(O)254", "(O)613", "(O)634", "(O)635", "(O)636", "(O)637", "(O)638" },
-            ["Flower"] = new[] { "(O)376", "(O)402", "(O)418", "(O)591", "(O)593", "(O)595", "(O)597" },
-            ["Fish"] = new[] { "(O)128", "(O)129", "(O)130", "(O)131", "(O)132", "(O)136", "(O)137", "(O)138", "(O)139", "(O)140", "(O)141", "(O)142", "(O)143", "(O)144", "(O)145", "(O)146", "(O)147", "(O)148", "(O)149", "(O)150", "(O)151" },
-            ["AnimalProduct"] = new[] { "(O)174", "(O)176", "(O)180", "(O)182", "(O)184", "(O)186", "(O)436", "(O)438", "(O)440", "(O)442", "(O)444", "(O)446" },
-            ["ArtisanGoods"] = new[] { "(O)303", "(O)346", "(O)348", "(O)350", "(O)424", "(O)426", "(O)428", "(O)459" },
-            ["Mineral"] = new[] { "(O)60", "(O)62", "(O)64", "(O)66", "(O)68", "(O)70", "(O)72", "(O)80", "(O)82", "(O)84", "(O)86" },
-            ["Forage"] = new[] { "(O)16", "(O)18", "(O)20", "(O)22", "(O)78", "(O)88", "(O)90", "(O)257", "(O)259", "(O)281", "(O)283", "(O)404", "(O)406", "(O)408", "(O)410", "(O)412", "(O)414", "(O)416" },
-        };
+            int seasonIdx = Game1.currentSeason switch
+            {
+                "spring" => 0,
+                "summer" => 1,
+                "fall"   => 2,
+                _        => 3, // winter
+            };
+            return (Game1.year - 1) * 4 + seasonIdx;
+        }
+
+        /// <summary>
+        /// Returns the quantity multiplier for contracts / bargains.
+        /// Spring Y1 (idx 0) → 1x .. Winter Y3 (idx 11) → ~100x, exponential curve.
+        /// Formula: multiplier = baseMin + (baseMax - baseMin) * (idx / maxIdx)^exponent
+        /// Then multiplied by the config scalar.
+        ///
+        /// At progression 0  → ~1–3 (random low end)
+        /// At progression 11 → ~50–120 (random high end)
+        /// </summary>
+        private static int GetProgressionQuantity(Random rng, double configScale)
+        {
+            int idx = GetProgressionIndex();
+            // Clamp to 0-11 for the core curve, allow slight growth beyond Y3
+            float t = Math.Min(idx, 15) / 11f;
+
+            // Exponential curve:  low end for early game, explodes toward late game
+            // At t=0: range = [1, 5]   |  At t=1.0: range = [60, 120]
+            double lowEnd  = 1.0 + 59.0 * Math.Pow(t, 2.0);
+            double highEnd = 5.0 + 115.0 * Math.Pow(t, 2.0);
+
+            double raw = lowEnd + rng.NextDouble() * (highEnd - lowEnd);
+            int quantity = Math.Max(1, (int)(raw * configScale));
+            return quantity;
+        }
 
         // ══════════════════════════════════════════════════════════════
         //  INITIALIZATION
@@ -358,9 +405,11 @@ namespace StardewEconomyProject.source.economy
             LogHelper.Info($"[Contracts] Board refreshed with {_availableContracts.Count} new contracts.");
         }
 
-        /// <summary>Generate a single random contract.</summary>
+        /// <summary>Generate a single random contract with seasonal bias and progression scaling.</summary>
         private static Contract GenerateContract()
         {
+            var config = ModConfig.GetInstance();
+
             // Build the eligible NPC pool based on reputation level & professions
             int repLevel = ReputationSkill.GetLevel(Game1.player);
             var eligibleContractors = new Dictionary<string, string[]>(NpcContractors);
@@ -383,18 +432,64 @@ namespace StardewEconomyProject.source.economy
             var npcList = eligibleContractors.Keys.ToList();
             string npc = npcList[_contractRng.Next(npcList.Count)];
             var categories = eligibleContractors[npc];
-            string category = categories[_contractRng.Next(categories.Length)];
 
-            // Pick items from that category
-            if (!ContractItems.TryGetValue(category, out var itemPool) || itemPool.Length == 0)
+            // ── Split NPC's categories into seasonal vs non-seasonal pools ──
+            var seasonalCats   = categories.Where(c => SeasonalItemRegistry.SeasonalCategories.Contains(c)).ToArray();
+            var nonSeasonalCats = categories.Where(c => !SeasonalItemRegistry.SeasonalCategories.Contains(c)).ToArray();
+
+            string category;
+            if (seasonalCats.Length > 0 && nonSeasonalCats.Length > 0)
+            {
+                // Roll: SeasonalContractBias chance to pick a seasonal category
+                if (_contractRng.NextDouble() < config.SeasonalContractBias)
+                    category = seasonalCats[_contractRng.Next(seasonalCats.Length)];
+                else
+                    category = nonSeasonalCats[_contractRng.Next(nonSeasonalCats.Length)];
+            }
+            else if (seasonalCats.Length > 0)
+                category = seasonalCats[_contractRng.Next(seasonalCats.Length)];
+            else if (nonSeasonalCats.Length > 0)
+                category = nonSeasonalCats[_contractRng.Next(nonSeasonalCats.Length)];
+            else
+                category = categories[_contractRng.Next(categories.Length)];
+
+            // Get the dynamic item pool for this category (built from game data)
+            var itemPool = SeasonalItemRegistry.GetItemPool(category);
+            if (itemPool == null || itemPool.Count == 0)
                 return null;
 
-            string itemId = itemPool[_contractRng.Next(itemPool.Length)];
+            // ── Seasonal bias: split pool into in-season and off-season ──
+            var inSeason  = itemPool.Where(e => SeasonalItemRegistry.IsInSeason(e.Seasons)).ToList();
+            var offSeason = itemPool.Where(e => !SeasonalItemRegistry.IsInSeason(e.Seasons)).ToList();
 
-            // Determine quantity based on game progression (year 1 = smaller)
-            int baseQty = 20 + _contractRng.Next(30);
-            int yearMultiplier = Math.Min(Game1.year, 3);
-            int quantity = baseQty * yearMultiplier;
+            bool pickedOffSeason = false;
+            SeasonalItemRegistry.PoolEntry picked;
+
+            if (inSeason.Count > 0 && offSeason.Count > 0)
+            {
+                // Roll: InSeasonBias chance to pick from in-season pool
+                if (_contractRng.NextDouble() < config.InSeasonBias)
+                    picked = inSeason[_contractRng.Next(inSeason.Count)];
+                else
+                {
+                    picked = offSeason[_contractRng.Next(offSeason.Count)];
+                    pickedOffSeason = true;
+                }
+            }
+            else if (inSeason.Count > 0)
+                picked = inSeason[_contractRng.Next(inSeason.Count)];
+            else if (offSeason.Count > 0)
+            {
+                picked = offSeason[_contractRng.Next(offSeason.Count)];
+                pickedOffSeason = true;
+            }
+            else
+                picked = itemPool[_contractRng.Next(itemPool.Count)]; // fallback
+
+            string itemId = picked.QualifiedItemId;
+
+            // ── Quantity: progression-based scaling ──
+            int quantity = GetProgressionQuantity(_contractRng, config.ContractQuantityScale);
 
             // Determine quality requirement (higher chance in later years)
             int minQuality = 0;
@@ -403,9 +498,13 @@ namespace StardewEconomyProject.source.economy
             if (Game1.year >= 3 && _contractRng.NextDouble() < 0.15)
                 minQuality = 2;
 
-            // Calculate base reward: sum of vanilla prices * quantity
+            // Calculate base reward: vanilla price * quantity
             int vanillaPrice = GetVanillaItemPrice(itemId);
             int baseReward = vanillaPrice * quantity;
+
+            // Off-season bonus: items that aren't naturally available pay more
+            double offSeasonMultiplier = pickedOffSeason ? config.OffSeasonRewardBonus : 1.0;
+            baseReward = (int)(baseReward * offSeasonMultiplier);
 
             // BulkTrader profession: -20% quantity requirements
             if (ReputationSkill.HasProfession("BulkTrader"))
@@ -413,8 +512,16 @@ namespace StardewEconomyProject.source.economy
                 quantity = Math.Max(1, (int)(quantity * 0.80));
             }
 
-            // Duration: 5-14 days based on quantity
-            int duration = Math.Clamp(5 + quantity / 20, 5, 14);
+            // ── Duration: longer to compensate for crop growing time ──
+            // Base duration + extra days proportional to quantity, clamped
+            int duration = Math.Clamp(
+                config.ContractDurationBase + quantity / 5,
+                config.ContractDurationBase,
+                config.ContractDurationMax);
+
+            // Off-season contracts get extra time (hard to source)
+            if (pickedOffSeason)
+                duration = Math.Min(config.ContractDurationMax, (int)(duration * 1.5));
 
             // Friendship reward scales with contract value
             int friendshipReward = Math.Clamp(150 + baseReward / 500, 150, 500);
@@ -427,20 +534,22 @@ namespace StardewEconomyProject.source.economy
                 _ => ""
             };
 
+            string seasonTag = pickedOffSeason ? " [Off-Season]" : "";
+
             // Get item display name
             string itemName = GetItemDisplayName(itemId);
 
             var contract = new Contract
             {
                 ContractId = $"SEP_{_nextContractId++}",
-                Name = $"{npc}'s Order: {qualityName}{quantity}x {itemName}",
-                Description = $"{npc} needs {quantity} {qualityName}{itemName} delivered within {duration} days.",
+                Name = $"{npc}'s Order: {qualityName}{quantity}x {itemName}{seasonTag}",
+                Description = $"{npc} needs {quantity} {qualityName}{itemName} delivered within {duration} days.{(pickedOffSeason ? " (Off-season premium!)" : "")}",
                 RequesterNpc = npc,
                 RequiredItems = new Dictionary<string, int> { { itemId, quantity } },
                 MinimumQuality = minQuality,
                 DurationDays = duration,
                 BaseReward = baseReward,
-                PremiumMultiplier = ModConfig.GetInstance().ContractPremium,
+                PremiumMultiplier = config.ContractPremium,
                 FriendshipReward = friendshipReward,
                 FriendshipPenalty = -30,
                 MarketCategory = category,
